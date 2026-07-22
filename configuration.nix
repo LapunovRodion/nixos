@@ -1,5 +1,23 @@
 { config, pkgs, lib, ... }:
 
+let
+  # claude-code, всегда ходящий через hysteria (http-прокси на 3128).
+  # Обёртка, а не глобальные HTTPS_PROXY — через VPN идёт только claude,
+  # остальная система работает напрямую.
+  # Именно http-прокси, а не socks5: он резолвит имена на стороне сервера,
+  # поэтому не упирается в отсутствие IPv6 у VPN-сервера.
+  claude-code-vpn = pkgs.symlinkJoin {
+    name = "claude-code-vpn";
+    paths = [ pkgs.claude-code ];
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    postBuild = ''
+      wrapProgram $out/bin/claude \
+        --set HTTPS_PROXY "http://127.0.0.1:3128" \
+        --set HTTP_PROXY  "http://127.0.0.1:3128" \
+        --set NO_PROXY    "localhost,127.0.0.1,::1"
+    '';
+  };
+in
 {
   imports =
     [ # Include the results of the hardware scan.
@@ -123,8 +141,8 @@
     xwayland-satellite   # X11-приложения
     # сеть
     hysteria
-    # 4. Claude Code (CLI, unfree)
-    claude-code
+    # 4. Claude Code (CLI, unfree) — обёрнутый на VPN, см. let выше
+    claude-code-vpn
   ];
 
   # Enable the OpenSSH daemon.
