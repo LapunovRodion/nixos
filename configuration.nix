@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, inputs, ... }:
 
 let
   # claude-code, всегда ходящий через hysteria (http-прокси на 3128).
@@ -66,7 +66,12 @@ in
     description = "artur";
     extraGroups = [ "networkmanager" "wheel" ];
     packages = with pkgs; [];
+    shell = pkgs.fish;   # логин-шелл fish (Batch 2)
   };
+
+  # fish на системном уровне: регистрирует /etc/shells + vendor-completions.
+  # Пользовательский конфиг fish — в home.nix (programs.fish).
+  programs.fish.enable = true;
 
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
@@ -137,13 +142,91 @@ in
     wget
     # niri окружение
     fuzzel               # лаунчер
-    alacritty            # терминал
+    kitty                # терминал (единственный; вместо alacritty/rio)
     xwayland-satellite   # X11-приложения
     # сеть
     hysteria
     # 4. Claude Code (CLI, unfree) — обёрнутый на VPN, см. let выше
     claude-code-vpn
+    # 5. Obsidian (unfree) — само хранилище синхронизируется через syncthing ниже
+    obsidian
+
+    # ---- Перенос по чеклисту [[04 - План переноса на NixOS]] ----
+    # Терминал: kitty — объявлен выше в блоке «niri окружение» как единственный.
+    # niri: история буфера обмена + сохранение содержимого после закрытия окна
+    cliphist
+    wl-clip-persist
+    # CLI-утилиты
+    gh          # github-cli
+    lazygit
+    ripgrep     # уже подтягивался как зависимость — теперь объявлен явно
+
+    # ---- Batch 3a: мессенджеры, торрент (из nixpkgs) ----
+    vesktop           # Discord-клиент (вместо discord)
+    ayugram-desktop   # форк Telegram (бинарник называется AyuGram)
+    qbittorrent       # торренты
+
+    # ---- Batch 3b: браузер + claude-desktop (из сторонних flake) ----
+    inputs.zen-browser.packages.${pkgs.system}.default
+    inputs.claude-desktop.packages.${pkgs.system}.claude-desktop-with-fhs
   ];
+
+  # plocate — быстрый поиск по имени файла (updatedb по таймеру).
+  # Правильный способ в NixOS — модуль, а не просто пакет.
+  services.locate = {
+    enable = true;
+    package = pkgs.plocate;
+  };
+
+  # ---------------------------------------------------------------
+  # 5. Syncthing — синхронизация хранилища Obsidian
+  # ---------------------------------------------------------------
+  # Работает от пользователя artur, иначе права на ~/Obsidian будут root'овые.
+  # Web-UI: http://127.0.0.1:8384 — наружу не открыт намеренно,
+  # с другой машины удобнее пробросить: ssh -L 8384:127.0.0.1:8384 artur@<host>
+  services.syncthing = {
+    enable = true;
+    user = "artur";
+    group = "users";
+    dataDir = "/home/artur";
+    configDir = "/home/artur/.config/syncthing";
+    openDefaultPorts = true;   # 22000/tcp+udp (обмен), 21027/udp (обнаружение)
+  };
+
+  # ---------------------------------------------------------------
+  # 6. Tailscale — mesh-VPN до остальных машин
+  # ---------------------------------------------------------------
+  # Модуль сам ставит firewall.checkReversePath = "loose" — без этого
+  # ломается маршрутизация через tailscale0.
+  # После ребилда авторизация делается один раз вручную: sudo tailscale up
+  services.tailscale.enable = true;
+  networking.firewall.trustedInterfaces = [ "tailscale0" ];
+
+  # ---------------------------------------------------------------
+  # Шрифты (Batch 4)
+  # Арчевые имена из плана → атрибуты nixpkgs; nerd-fonts переехали
+  # в неймспейс nerd-fonts.*, noto-emoji → noto-fonts-color-emoji.
+  # ---------------------------------------------------------------
+  fonts = {
+    enableDefaultPackages = true;
+    packages = with pkgs; [
+      nerd-fonts.jetbrains-mono   # ttf-jetbrains-mono-nerd
+      nerd-fonts.meslo-lg         # ttf-meslo-nerd
+      noto-fonts                  # noto-fonts
+      noto-fonts-cjk-sans         # noto-fonts-cjk
+      noto-fonts-color-emoji      # noto-fonts-emoji
+      dejavu_fonts                # ttf-dejavu
+      liberation_ttf              # ttf-liberation
+      open-sans                   # ttf-opensans
+      cantarell-fonts             # cantarell-fonts
+    ];
+    fontconfig.defaultFonts = {
+      monospace = [ "JetBrainsMono Nerd Font" "MesloLGS Nerd Font" ];
+      sansSerif = [ "Noto Sans" "Open Sans" "Cantarell" ];
+      serif     = [ "Noto Serif" ];
+      emoji     = [ "Noto Color Emoji" ];
+    };
+  };
 
   # Enable the OpenSSH daemon.
   services.openssh.enable = true;

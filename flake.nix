@@ -11,6 +11,28 @@
 
     # noctalia v5 — без follows на nixpkgs, иначе ломается бинарный кэш cachix.
     noctalia.url = "github:noctalia-dev/noctalia/cachix";
+
+    # nixvim — neovim, целиком описанный на nix (декларативно, в git).
+    nixvim = {
+      url = "github:nix-community/nixvim";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # zen-browser — нет в nixpkgs, ставится своим flake.
+    zen-browser = {
+      url = "github:0xc000022070/zen-browser-flake";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # claude-desktop (Linux) — нет в nixpkgs, community-flake.
+    # Пиним его nixpkgs на СТАБИЛЬНЫЙ 25.05: в свежем unstable убрали весь набор
+    # nodePackages (flake на него завязан, нужен asar). follows не спасал —
+    # flake сам просит nixos-unstable и дедуплицировался с корневым. Явный url
+    # на 25.05 создаёт отдельный узел, где nodePackages ещё есть.
+    claude-desktop = {
+      url = "github:k3d3/claude-desktop-linux-flake";
+      inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    };
   };
 
   outputs = { self, nixpkgs, home-manager, noctalia, ... }@inputs: {

@@ -1,0 +1,3 @@
+# nixos-rebuild build output (symlink into /nix/store — regenerated each build)
+result
+result-*
