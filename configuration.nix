@@ -77,6 +77,27 @@ in
   nixpkgs.config.allowUnfree = true;
 
   # ---------------------------------------------------------------
+  # NVIDIA (RTX 4050, dGPU) — драйвер + CUDA для локальных LLM.
+  # Ноут ROG Zephyrus G14 GA403UU: гибрид AMD iGPU (дисплей) + NVIDIA (по запросу).
+  # PRIME offload: дисплей на amdgpu, NVIDIA просыпается под нагрузку/`nvidia-offload`.
+  # ---------------------------------------------------------------
+  hardware.graphics.enable = true;
+  services.xserver.videoDrivers = [ "nvidia" ];
+  hardware.nvidia = {
+    modesetting.enable = true;
+    open = true;                        # открытый модуль ядра — ок для RTX 40xx (Ada)
+    nvidiaSettings = true;
+    package = config.boot.kernelPackages.nvidiaPackages.stable;
+    powerManagement.enable = true;      # корректные suspend/resume + runtime-PM dGPU
+    prime = {
+      offload.enable = true;
+      offload.enableOffloadCmd = true;  # обёртка `nvidia-offload <app>`
+      amdgpuBusId = "PCI:101:0:0";      # AMD iGPU  (0000:65:00.0)
+      nvidiaBusId = "PCI:1:0:0";        # NVIDIA    (0000:01:00.0)
+    };
+  };
+
+  # ---------------------------------------------------------------
   # Nix: flakes + бинарный кэш noctalia
   # ---------------------------------------------------------------
   nix.settings = {
