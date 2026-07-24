@@ -105,8 +105,9 @@ in
     enable = true;
     package = pkgs.ollama-cuda;         # CUDA-сборка → использует RTX 4050
     environmentVariables = {
-      OLLAMA_FLASH_ATTENTION = "1";     # быстрее + экономит VRAM
-      OLLAMA_KV_CACHE_TYPE = "q8_0";    # квантованный KV-кэш → больше слоёв/контекста в 6 ГБ
+      OLLAMA_FLASH_ATTENTION = "1";     # нужно для квантованного KV-кэша
+      OLLAMA_KV_CACHE_TYPE = "q4_0";    # 4-бит KV → влезает 64K контекста в 6 ГБ (путь 1)
+      OLLAMA_CONTEXT_LENGTH = "65536";  # Hermes Agent требует минимум 64K контекста
     };
   };
 
@@ -184,6 +185,13 @@ in
     claude-code-vpn
     # 5. Obsidian (unfree) — само хранилище синхронизируется через syncthing ниже
     obsidian
+    # 6. Hermes Agent (харнесс, управление системой) — бинарь `hermes` (с TUI).
+    #    Пакет `minimal`: bin/hermes уже включает TUI (symlink ui-tui + HERMES_TUI_DIR),
+    #    но БЕЗ облачных SDK из `full` (anthropic/bedrock/voice/matrix) — не нужны под
+    #    локальный Ollama. Модуль во flake.nix импортирован, но НЕ enable (его enable =
+    #    always-on gateway, крашится без провайдера). Провайдер укажу интерактивно:
+    #    `hermes model` → Custom endpoint → Ollama.
+    inputs.hermes-agent.packages.${pkgs.system}.minimal
 
     # ---- Перенос по чеклисту [[04 - План переноса на NixOS]] ----
     # Терминал: kitty — объявлен выше в блоке «niri окружение» как единственный.
