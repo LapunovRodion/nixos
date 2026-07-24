@@ -33,6 +33,11 @@
       url = "github:k3d3/claude-desktop-linux-flake";
       inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     };
+
+    # hermes-agent — харнесс локального ИИ (управление системой) + память QMD.
+    # Официальный flake на uv2nix + готовый nixosModules.default.
+    # БЕЗ follows на nixpkgs: у него свой пиннинг под uv2nix, перебивать ломает сборку.
+    hermes-agent.url = "github:NousResearch/hermes-agent";
   };
 
   outputs = { self, nixpkgs, home-manager, noctalia, ... }@inputs: {
@@ -42,6 +47,7 @@
       modules = [
         ./configuration.nix
         noctalia.nixosModules.default
+        inputs.hermes-agent.nixosModules.default
         home-manager.nixosModules.home-manager
         {
           home-manager.useGlobalPkgs = true;
