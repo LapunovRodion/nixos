@@ -17,6 +17,30 @@ let
         --set NO_PROXY    "localhost,127.0.0.1,::1"
     '';
   };
+
+  # Claude Desktop, целиком ходящий через hysteria (http-прокси на 3128).
+  # Это Electron: сам бинарь запускается лаунчером по .desktop (Exec=claude-desktop,
+  # резолвится через PATH), поэтому заворачиваем бинарь — обёртка подхватится сама.
+  # Chromium под niri (нет GNOME/KDE) берёт прокси из СТРОЧНЫХ http_proxy/https_proxy;
+  # дочерние node/MCP-процессы («ноды») — из привычных HTTP_PROXY/HTTPS_PROXY.
+  # Задаём оба регистра → через VPN идёт и приложение, и его ноды («полностью»).
+  claude-desktop-base = inputs.claude-desktop.packages.${pkgs.system}.claude-desktop-with-fhs;
+  claude-desktop-vpn = pkgs.symlinkJoin {
+    name = "claude-desktop-vpn";
+    paths = [ claude-desktop-base ];
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    postBuild = ''
+      wrapProgram $out/bin/claude-desktop \
+        --set https_proxy "http://127.0.0.1:3128" \
+        --set http_proxy  "http://127.0.0.1:3128" \
+        --set all_proxy   "http://127.0.0.1:3128" \
+        --set no_proxy    "localhost,127.0.0.1,::1" \
+        --set HTTPS_PROXY "http://127.0.0.1:3128" \
+        --set HTTP_PROXY  "http://127.0.0.1:3128" \
+        --set ALL_PROXY   "http://127.0.0.1:3128" \
+        --set NO_PROXY    "localhost,127.0.0.1,::1"
+    '';
+  };
 in
 {
   imports =
@@ -214,7 +238,8 @@ in
 
     # ---- Batch 3b: браузер + claude-desktop (из сторонних flake) ----
     inputs.zen-browser.packages.${pkgs.system}.default
-    inputs.claude-desktop.packages.${pkgs.system}.claude-desktop-with-fhs
+    # claude-desktop — обёрнут на VPN (claude-desktop-vpn в let выше), а не голый пакет
+    claude-desktop-vpn
   ];
 
   # plocate — быстрый поиск по имени файла (updatedb по таймеру).
