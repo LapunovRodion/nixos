@@ -18,6 +18,67 @@ let
     '';
   };
 
+  # Запись экрана одной кнопкой: первый вызов — старт, повторный — стоп.
+  # Пока идёт запись, висит уведомление с таймером (обновляется каждые 5 с),
+  # чтобы не гадать, пишется сейчас или нет. Демон уведомлений — noctalia.
+  screenrec = pkgs.writeShellApplication {
+    name = "screenrec";
+    runtimeInputs = with pkgs; [ wf-recorder libnotify procps coreutils ];
+    text = ''
+      dir="$HOME/Videos"
+      run="''${XDG_RUNTIME_DIR:-/tmp}"
+      idfile="$run/screenrec.notify-id"     # id уведомления, чтобы обновлять его же
+      tickfile="$run/screenrec.ticker-pid"  # фоновый цикл-таймер
+      namefile="$run/screenrec.filename"
+
+      if pgrep -x wf-recorder >/dev/null 2>&1; then
+        # --- СТОП ---
+        if [ -f "$tickfile" ]; then kill "$(cat "$tickfile")" 2>/dev/null || true; fi
+        # SIGINT, а не SIGKILL: wf-recorder должен корректно дописать контейнер
+        pkill -INT -x wf-recorder || true
+        for _ in $(seq 1 60); do
+          pgrep -x wf-recorder >/dev/null 2>&1 || break
+          sleep 0.1
+        done
+        file="$(cat "$namefile" 2>/dev/null || echo "")"
+        id="$(cat "$idfile" 2>/dev/null || echo "")"
+        if [ -n "$id" ]; then
+          notify-send -a screenrec -r "$id" -t 6000 "Запись остановлена" "$file"
+        else
+          notify-send -a screenrec -t 6000 "Запись остановлена" "$file"
+        fi
+        rm -f "$idfile" "$tickfile" "$namefile"
+      else
+        # --- СТАРТ ---
+        mkdir -p "$dir"
+        file="$dir/rec-$(date +%Y-%m-%d_%H-%M-%S).mp4"
+        echo "$file" > "$namefile"
+        wf-recorder -f "$file" >/dev/null 2>&1 &
+        sleep 1
+        if ! pgrep -x wf-recorder >/dev/null 2>&1; then
+          notify-send -a screenrec -u critical "Запись не запустилась" "wf-recorder завершился сразу"
+          rm -f "$namefile"
+          exit 1
+        fi
+        # -p печатает id уведомления → потом обновляем его же, а не плодим новые
+        id="$(notify-send -a screenrec -p -t 0 "Идёт запись экрана" "00:00" 2>/dev/null || echo "")"
+        echo "$id" > "$idfile"
+        (
+          start="$(date +%s)"
+          while pgrep -x wf-recorder >/dev/null 2>&1; do
+            sleep 5
+            el=$(( $(date +%s) - start ))
+            ts="$(printf '%02d:%02d' $(( el / 60 )) $(( el % 60 )))"
+            if [ -n "$id" ]; then
+              notify-send -a screenrec -r "$id" -t 0 "Идёт запись экрана" "$ts" || true
+            fi
+          done
+        ) &
+        echo $! > "$tickfile"
+      fi
+    '';
+  };
+
   # Claude Desktop, целиком ходящий через hysteria (http-прокси на 3128).
   # Это Electron: сам бинарь запускается лаунчером по .desktop (Exec=claude-desktop,
   # резолвится через PATH), поэтому заворачиваем бинарь — обёртка подхватится сама.
@@ -253,16 +314,18 @@ in
 
     # ---- Перенос по чеклисту [[04 - План переноса на NixOS]] ----
     # Терминал: kitty — объявлен выше в блоке «niri окружение» как единственный.
-    # niri: история буфера обмена + сохранение содержимого после закрытия окна
-    cliphist
-    wl-clip-persist
-    wl-clipboard         # wl-copy/wl-paste — БЕЗ него cliphist не работает вообще
-    # Скриншоты/запись. Сам снимок умеет niri (Print / Ctrl+Print / Alt+Print),
-    # эти пакеты закрывают то, чего у него нет: аннотации и видео.
-    grim                 # захват в файл из CLI (для скриптов)
+    # Буфер обмена: история — ВСТРОЕННАЯ в noctalia (`panel-toggle clipboard`),
+    # поэтому cliphist/wl-clip-persist не нужны. wl-clipboard оставлен ради
+    # wl-copy/wl-paste в CLI и пайплайнах.
+    wl-clipboard
+    # Скриншоты снимает noctalia (`screenshot-region` / `screenshot-fullscreen`).
+    # Эти пакеты закрывают то, чего нет ни у неё, ни у niri: аннотации и видео.
+    grim                 # захват в файл из CLI (для скриптов/пайплайнов)
     slurp                # выбор области мышью → координаты, в связке с grim
     satty                # редактор снимка: стрелки, текст, размытие
     wf-recorder          # запись видео экрана
+    libnotify            # notify-send — индикация записи (демон уведомлений = noctalia)
+    screenrec            # обёртка старт/стоп записи с таймером, см. let выше
     # CLI-утилиты
     gh          # github-cli
     lazygit
