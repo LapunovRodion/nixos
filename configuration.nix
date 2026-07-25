@@ -105,14 +105,29 @@ in
   # update nixpkgs-cc), не таща за собой весь unstable. claude-code-vpn
   # в let-блоке оборачивает уже этот, свежий, pkgs.claude-code.
   nixpkgs.overlays = [
-    (final: prev: {
-      # Импортируем nixpkgs-cc со своим config (не legacyPackages — там дефолтный
-      # config без allowUnfree, а claude-code unfree).
-      claude-code = (import inputs.nixpkgs-cc {
-        system = prev.stdenv.hostPlatform.system;
-        config.allowUnfree = true;
-      }).claude-code;
-    })
+    (final: prev:
+      let
+        # Импортируем nixpkgs-cc со своим config (не legacyPackages — там дефолтный
+        # config без allowUnfree, а claude-code unfree).
+        ccPkgs = import inputs.nixpkgs-cc {
+          system = prev.stdenv.hostPlatform.system;
+          config.allowUnfree = true;
+        };
+      in {
+        # >>> ВРЕМЕННОЕ ПЕРЕОПРЕДЕЛЕНИЕ (откатить, когда nixpkgs догонит) <<<
+        # nixpkgs-cc сейчас даёт 2.1.217 (срез до релиза Opus 5, 2026-07-24) — этот
+        # CLI ещё не знает про Opus 5. Тянем свежий прибилд 2.1.220 напрямую с
+        # downloads.claude.ai (тот же источник, что и сам пакет).
+        # ОТКАТ: убрать .overrideAttrs, оставить голый `ccPkgs.claude-code`, затем
+        # `nix flake update nixpkgs-cc` — вернёмся к версии из nixpkgs.
+        claude-code = ccPkgs.claude-code.overrideAttrs (old: {
+          version = "2.1.220";
+          src = prev.fetchurl {
+            url = "https://downloads.claude.ai/claude-code-releases/2.1.220/linux-x64/claude";
+            hash = "sha256-Z09h8g/zBvMQDPkgDkw2xLcCeLW+8ohFSYGblCqJyGM=";
+          };
+        });
+      })
   ];
 
   # ---------------------------------------------------------------
