@@ -100,6 +100,21 @@ in
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 
+  # Оверлей: claude-code берём из отдельного свежего входа nixpkgs-cc,
+  # а не из основного nixpkgs. Так CLI обновляется независимо (nix flake
+  # update nixpkgs-cc), не таща за собой весь unstable. claude-code-vpn
+  # в let-блоке оборачивает уже этот, свежий, pkgs.claude-code.
+  nixpkgs.overlays = [
+    (final: prev: {
+      # Импортируем nixpkgs-cc со своим config (не legacyPackages — там дефолтный
+      # config без allowUnfree, а claude-code unfree).
+      claude-code = (import inputs.nixpkgs-cc {
+        system = prev.stdenv.hostPlatform.system;
+        config.allowUnfree = true;
+      }).claude-code;
+    })
+  ];
+
   # ---------------------------------------------------------------
   # NVIDIA (RTX 4050, dGPU) — драйвер + CUDA для локальных LLM.
   # Ноут ROG Zephyrus G14 GA403UU: гибрид AMD iGPU (дисплей) + NVIDIA (по запросу).

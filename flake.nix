@@ -4,6 +4,13 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
+    # Отдельный, всегда свежий срез nixpkgs ТОЛЬКО под claude-code.
+    # Через оверлей (см. configuration.nix) им подменяется pkgs.claude-code,
+    # чтобы обновлять CLI независимо от основного nixpkgs — не утаскивая весь
+    # unstable (и его случайные поломки, напр. сборку ollama-cuda).
+    # Обновление CLI: nix flake update nixpkgs-cc  →  rebuild.
+    nixpkgs-cc.url = "github:NixOS/nixpkgs/nixos-unstable";
+
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
