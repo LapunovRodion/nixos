@@ -7,6 +7,17 @@
 
   home.stateVersion = "26.05";
 
+  # Тема курсоров. До этого в системе не было НИ ОДНОЙ — niri ругался
+  # "error loading xcursor crosshair: no default icon", из-за чего slurp
+  # (выделение области под скриншот) выглядел так, будто ничего не запустилось.
+  # pointerCursor сам ставит пакет, XCURSOR_THEME/SIZE и настройки GTK.
+  home.pointerCursor = {
+    package = pkgs.bibata-cursors;
+    name = "Bibata-Modern-Classic";
+    size = 24;
+    gtk.enable = true;
+  };
+
   programs.noctalia = {
     enable = true;
     systemd.enable = true;   # автозапуск как user-сервис
