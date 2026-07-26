@@ -338,9 +338,10 @@ in
 
     # ---- Книги ----
     # Читалка. Библиотека живёт на сервере (Grimmory, http://server:6060),
-    # книги берутся по OPDS, место чтения синхронизируется встроенным
-    # в KOReader «Progress Sync» → Custom Sync Server. Syncthing не участвует.
-    koreader
+    # книги берутся по OPDS, место чтения синхронизируется через
+    # Custom Sync Server (kosync-протокол) на тот же адрес. Syncthing не участвует.
+    # Тот же Readest ставится на телефон — интерфейс и настройки одинаковые.
+    readest
 
     # ---- Batch 3b: браузер + claude-desktop (из сторонних flake) ----
     inputs.zen-browser.packages.${pkgs.system}.default
