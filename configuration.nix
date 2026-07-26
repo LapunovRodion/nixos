@@ -336,6 +336,12 @@ in
     ayugram-desktop   # форк Telegram (бинарник называется AyuGram)
     qbittorrent       # торренты
 
+    # ---- Книги ----
+    # Читалка. Библиотека живёт на сервере (Grimmory, http://server:6060),
+    # книги берутся по OPDS, место чтения синхронизируется встроенным
+    # в KOReader «Progress Sync» → Custom Sync Server. Syncthing не участвует.
+    koreader
+
     # ---- Batch 3b: браузер + claude-desktop (из сторонних flake) ----
     inputs.zen-browser.packages.${pkgs.system}.default
     # claude-desktop — обёрнут на VPN (claude-desktop-vpn в let выше), а не голый пакет
