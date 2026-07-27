@@ -43,6 +43,12 @@
   # --- fish: логин-шелл (системная сторона — в configuration.nix) ---
   programs.fish = {
     enable = true;
+    # Убрать заводское "Welcome to fish, the friendly interactive shell"
+    # при каждом открытии терминала. Опция типа lines, поэтому строка
+    # ДОПИСЫВАЕТСЯ к тому, что уже вносят другие модули (zoxide и т.д.).
+    interactiveShellInit = ''
+      set -g fish_greeting ""
+    '';
     # мелкие удобные абревиатуры; расширю позже
     shellAbbrs = {
       gs = "git status";
@@ -63,10 +69,163 @@
     enableFishIntegration = true;
   };
 
-  # --- ls -> lsd, с иконками; алиасы в fish ---
-  programs.lsd = {
+  # --- ls -> eza, с иконками и статусом git прямо в листинге ---
+  # Заменил lsd: eza умеет колонку git и --group-directories-first.
+  # Держать оба нельзя — оба вешают свой алиас на ls.
+  programs.eza = {
     enable = true;
     enableFishIntegration = true;
+    icons = "auto";
+    git = true;
+    extraOptions = [ "--group-directories-first" "--header" ];
+  };
+
+  # --- bat: cat с подсветкой ---
+  # theme = "ansi" — тема, которая берёт цвета из ANSI-палитры терминала,
+  # то есть из темы kitty, то есть из обоев. Своя тема тут не нужна.
+  programs.bat = {
+    enable = true;
+    config = {
+      theme = "ansi";
+      style = "numbers,changes,header";
+    };
+  };
+
+  # --- fzf: нечёткий поиск, Ctrl+R и Ctrl+T в fish ---
+  programs.fzf = {
+    enable = true;
+    enableFishIntegration = true;
+    defaultOptions = [
+      "--height=45%"
+      "--layout=reverse"
+      "--border=rounded"
+      "--info=inline"
+      # --color=16: своих цветов не выдумывать, брать 16 ANSI из терминала
+      "--color=16"
+    ];
+  };
+
+  # --- git + delta: диффы сплитом с подсветкой ---
+  # programs.git включён именно ради delta: интеграция пишется в
+  # programs.git.iniContent, а он превращается в файл только когда
+  # модуль git включён (modules/programs/delta.nix, hasGitConfig).
+  # Имя и почту НЕ задаю: глобального ~/.gitconfig у меня нет, личность
+  # прописана по репозиториям, и так и остаётся.
+  programs.git.enable = true;
+  programs.delta = {
+    enable = true;
+    enableGitIntegration = true;
+    options = {
+      navigate = true; # n/N — прыгать по файлам в диффе
+      line-numbers = true;
+      side-by-side = true;
+      hyperlinks = true;
+      syntax-theme = "ansi";
+    };
+  };
+
+  # --- starship: приглашение ---
+  # Все цвета заданы ИМЕНАМИ ANSI (green, blue, magenta…), ни одного hex.
+  # Поэтому промпт едет за палитрой обоев через терминал.
+  #
+  # Встроенный шаблон starship у noctalia сознательно НЕ включён: он не
+  # пишет свой файл, а вклинивается в ~/.config/starship.toml между
+  # маркерами "# >>> NOCTALIA STARSHIP PALETTE >>>" (assets/templates/
+  # starship/apply.sh). С HM это несовместимо — файл read-only симлинк.
+  programs.starship = {
+    enable = true;
+    enableFishIntegration = true;
+    settings = {
+      add_newline = true;
+
+      character = {
+        success_symbol = "[❯](bold green)";
+        error_symbol = "[❯](bold red)";
+        vimcmd_symbol = "[❮](bold yellow)";
+      };
+
+      directory = {
+        style = "bold blue";
+        truncation_length = 3;
+        truncate_to_repo = false;
+        read_only = " 󰌾";
+      };
+
+      git_branch.style = "bold magenta";
+      git_state.style = "bold red";
+      git_status = {
+        style = "bold yellow";
+        ahead = "⇡$count";
+        behind = "⇣$count";
+        diverged = "⇕⇡$ahead_count⇣$behind_count";
+      };
+
+      # Показывать длительность только у команд дольше 2 секунд.
+      cmd_duration = {
+        min_time = 2000;
+        style = "yellow";
+        format = "took [$duration]($style) ";
+      };
+
+      # Видеть, что сижу в nix shell / nix develop.
+      nix_shell = {
+        symbol = " ";
+        style = "bold cyan";
+        format = "via [$symbol$state]($style) ";
+      };
+    };
+  };
+
+  # --- kitty ---
+  programs.kitty = {
+    enable = true;
+
+    font = {
+      name = "JetBrainsMono Nerd Font";
+      size = 11.5;
+    };
+
+    settings = {
+      # Рамку и тень рисует niri, свои декорации не нужны.
+      hide_window_decorations = "yes";
+      window_padding_width = 14;
+      confirm_os_window_close = 0;
+
+      # Прозрачность. background_blur здесь бесполезен: он требует
+      # протокола блюра от композитора, а у niri его нет.
+      background_opacity = "0.88";
+      dynamic_background_opacity = "yes";
+
+      # Табы: скошенный powerline вместо заводских прямоугольников.
+      # Панель появляется от двух табов (tab_bar_min_tabs по умолчанию 2).
+      tab_bar_edge = "top";
+      tab_bar_style = "powerline";
+      tab_powerline_style = "slanted";
+      active_tab_font_style = "bold";
+
+      # Шлейф за курсором (kitty 0.47). Значение — порог в МИЛЛИСЕКУНДАХ:
+      # шлейф рисуется только за курсором, простоявшим дольше порога,
+      # иначе он тянулся бы за каждой перерисовкой TUI.
+      cursor_trail = 3;
+      cursor_trail_start_threshold = 2;
+      cursor_shape = "beam";
+
+      # Лигатуры нужны, но под курсором разъезжаются — там показываем раздельно.
+      disable_ligatures = "cursor";
+
+      scrollback_lines = 20000;
+      enable_audio_bell = "no";
+    };
+
+    # Палитра от noctalia. Путь ОБЯЗАН быть абсолютным.
+    # Относительный include kitty резолвит относительно каталога САМОГО
+    # конфига (lib/kitty/kitty/conf/utils.py:372), а конфиг теперь лежит
+    # в /nix/store — тема бы не нашлась, и цвета молча съехали бы на
+    # дефолтные. expanduser в путях include поддерживается (там же, 295),
+    # поэтому "~" работает.
+    extraConfig = ''
+      include ~/.config/kitty/themes/noctalia.conf
+    '';
   };
 
   # --- монитор ресурсов (вместо glances) ---
