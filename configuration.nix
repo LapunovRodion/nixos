@@ -475,6 +475,15 @@ in
       liberation_ttf              # ttf-liberation
       open-sans                   # ttf-opensans
       cantarell-fonts             # cantarell-fonts
+
+      # Terminus — битмапный терминальный шрифт. Две сборки не дублируют
+      # друг друга: PCF/OTB рисуется попиксельно и живёт только в «родных»
+      # кеглях (12/14/16/18/20/22/24/28/32 px), TTF — обводочная конверсия
+      # для тех, кто битмапы не берёт в принципе (GTK, Electron, Qt).
+      # Битмапы фонтконфиг тут не режет: fonts.fontconfig.allowBitmaps = true
+      # по умолчанию, отдельно включать не нужно.
+      terminus_font               # terminus-font
+      terminus_font_ttf           # ttf-terminus-font
     ];
     fontconfig.defaultFonts = {
       monospace = [ "JetBrainsMono Nerd Font" "MesloLGS Nerd Font" ];
