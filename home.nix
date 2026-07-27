@@ -3,6 +3,7 @@
   imports = [
     inputs.noctalia.homeModules.default
     inputs.nixvim.homeModules.nixvim
+    ./noctalia.nix        # весь конфиг шелла — бар, док, виджеты, тема, плагины
   ];
 
   home.stateVersion = "26.05";
@@ -18,36 +19,7 @@
     gtk.enable = true;
   };
 
-  programs.noctalia = {
-    enable = true;
-    systemd.enable = true;   # автозапуск как user-сервис
-    settings = {
-      theme = { mode = "dark"; source = "builtin"; builtin = "Catppuccin"; };
-
-      shell = {
-        # приложения из шелла — как systemd-юниты, иначе умирают при рестарте сервиса.
-        # ВАЖНО: ключ живёт именно в секции [shell]. Лежал на верхнем уровне —
-        # noctalia писала в лог «launch_apps_as_systemd_services: unknown section»
-        # и молча игнорировала (валидация при сборке это пропускает).
-        launch_apps_as_systemd_services = true;
-      };
-
-      # Настройки плагинов: секция [plugin_settings."author/plugin"], схема открытая.
-      # Сам список включённых плагинов ведёт GUI (~/.local/state/noctalia/settings.toml),
-      # но их параметры можно держать здесь — в git.
-      plugin_settings."avivbintangaringga/nix-monitor" = {
-        # Кнопка Update в панели плагина. По умолчанию пусто — кнопка ругалась
-        # «update_command is empty». Порядок намеренно такой: сначала бамп lock,
-        # потом КОММИТ, и только потом rebuild — поколение всегда соответствует
-        # коммиту. Только flake.lock: прочие правки в дереве не затрагиваются.
-        update_command =
-          "cd /home/artur/nixos"
-          + " && nix flake update"
-          + " && git commit -m 'flake.lock: bump (via nix-monitor)' -- flake.lock"
-          + " && sudo nixos-rebuild switch --flake .#nixos";
-      };
-    };
-  };
+  # noctalia (шелл) — целиком в ./noctalia.nix, см. imports выше.
 
   # =============================================================
   # Batch 2 — пользовательские CLI-инструменты (декларативно)
