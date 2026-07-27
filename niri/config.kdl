@@ -673,4 +673,9 @@ binds {
     Mod+Shift+P { power-off-monitors; }
 }
 
-include "noctalia.kdl"
+// Цвета и градиенты из палитры noctalia. Файл рендерится из
+// ~/nixos/niri/theme.kdl.in при каждой смене обоев.
+// Стоит ПОСЛЕДНИМ: последний include перебивает всё, что задано выше,
+// поэтому заводские цвета в layout выше можно не трогать.
+// Прежнее имя noctalia.kdl — выход ВСТРОЕННОГО шаблона, он отключён.
+include "noctalia-theme.kdl"

@@ -74,7 +74,12 @@
         # include. Перекрашивается всё разом при смене обоев.
         # Список id: noctalia theme --list-templates
         templates = {
-          builtin_ids = [ "btop" "gtk3" "gtk4" "kitty" "niri" "qt" ];
+          # "niri" из встроенных УБРАН намеренно: он пишет плоский
+          # active-color, а мне нужна градиентная рамка фокуса. Вместо него
+          # свой шаблон ниже, templates.user.niri — он покрывает всё, что
+          # делал встроенный, плюс градиент. Держать оба нельзя: два файла
+          # определяли бы один и тот же focus-ring.
+          builtin_ids = [ "btop" "gtk3" "gtk4" "kitty" "qt" ];
           # telegram — под AyuGram (форк Telegram Desktop, формат палитры тот же).
           # ОСОБЫЙ СЛУЧАЙ: у этого шаблона нет post_hook, он только кладёт файл
           # ~/.config/telegram-desktop/themes/noctalia.tdesktop-theme. Сам Telegram
@@ -82,6 +87,17 @@
           # через Настройки → Чаты → ⋮ → Создать тему → Импортировать.
           # Значит и при смене палитры (source = "wallpaper") импорт надо повторять.
           community_ids = [ "zen-browser" "neovim" "obsidian" "fuzzel" "lazygit" "yazi" "telegram" ];
+
+          # Свой шаблон niri. input_path абсолютный (путь в /nix/store),
+          # так что noctalia берёт его как есть — resolveConfigPath
+          # достраивает только относительные пути.
+          # Файл в store read-only, но шаблон его лишь читает.
+          # post_hook не нужен: строка include уже стоит в config.kdl,
+          # а niri сам перечитывает конфиг при изменении файла.
+          user.niri = {
+            input_path = "${./niri/theme.kdl.in}";
+            output_path = "~/.config/niri/noctalia-theme.kdl";
+          };
         };
       };
 
