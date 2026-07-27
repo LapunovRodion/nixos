@@ -59,7 +59,13 @@
         # Список id: noctalia theme --list-templates
         templates = {
           builtin_ids = [ "btop" "gtk3" "gtk4" "kitty" "niri" "qt" ];
-          community_ids = [ "zen-browser" "neovim" "obsidian" "fuzzel" "lazygit" "yazi" ];
+          # telegram — под AyuGram (форк Telegram Desktop, формат палитры тот же).
+          # ОСОБЫЙ СЛУЧАЙ: у этого шаблона нет post_hook, он только кладёт файл
+          # ~/.config/telegram-desktop/themes/noctalia.tdesktop-theme. Сам Telegram
+          # держит тему в tdata и файл с диска не перечитывает — импорт руками,
+          # через Настройки → Чаты → ⋮ → Создать тему → Импортировать.
+          # Значит и при смене палитры (source = "wallpaper") импорт надо повторять.
+          community_ids = [ "zen-browser" "neovim" "obsidian" "fuzzel" "lazygit" "yazi" "telegram" ];
         };
       };
 
