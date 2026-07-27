@@ -358,9 +358,18 @@ window-rule {
     // block-out-from "screencast"
 }
 
-// Example: enable rounded corners for all windows.
-// (This example rule is commented out with a "/-" in front.)
-/-window-rule {
+// Скругление ВСЕХ окон: правило без match применяется ко всему.
+// Было заводским примером, отключённым через "/-".
+//
+// geometry-corner-radius задаёт радиус, а clip-to-geometry заставляет
+// обрезать по нему само содержимое окна. Без clip-to-geometry
+// скругляется только рамка/тень, а углы приложения остаются
+// квадратными и торчат из-под неё.
+//
+// Радиус согласован с барами noctalia (bar radius 12).
+// Приложения с серверными декорациями (GTK4/libadwaita) рисуют свои
+// углы сами — там niri просто обрежет по своему радиусу.
+window-rule {
     geometry-corner-radius 12
     clip-to-geometry true
 }
