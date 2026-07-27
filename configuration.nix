@@ -154,7 +154,9 @@ in
   users.users."artur" = {
     isNormalUser = true;
     description = "artur";
-    extraGroups = [ "networkmanager" "wheel" ];
+    # input — чтение /dev/input/event*: нужно плагину noctalia bongocat,
+    # он смотрит нажатия клавиш через evtest. Применяется после релогина.
+    extraGroups = [ "networkmanager" "wheel" "input" ];
     packages = with pkgs; [];
     shell = pkgs.fish;   # логин-шелл fish (Batch 2)
   };
@@ -335,6 +337,16 @@ in
     gh          # github-cli
     lazygit
     ripgrep     # уже подтягивался как зависимость — теперь объявлен явно
+
+    # ---- Зависимости плагинов noctalia (см. [[08 - Кастомизация (rice)]]) ----
+    # Плагины ставятся из витрины noctalia (состояние — в ~/.local/state/noctalia),
+    # но их внешние зависимости обязаны быть в системе, иначе плагин молча мёртв.
+    bitwarden-cli   # `bw` — плагин noctalia/bitwarden ходит в локальный `bw serve`,
+                    # а не в облако. Под свой Vaultwarden: `bw config server <url>`
+                    # ОДИН РАЗ до логина (или Server URL в настройках плагина).
+    python3         # хуки и MCP-шим плагина lowcache/claude-companion (stdlib, без pip)
+    playerctl       # «что играет»: шим claude-companion + медиа-бинды niri
+    evtest          # bongocat читает им нажатия клавиш; плюс группа `input` выше
 
     # ---- Видимость пакетов (чеклист [[04]], «Просмотр установленного») ----
     # В NixOS источник правды — сам конфиг, «пакетный менеджер как в Arch» не нужен.
