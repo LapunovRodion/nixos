@@ -121,6 +121,16 @@ in
   # Use latest kernel.
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
+  # amdgpu грузится из initrd — ДО nvidia. Иначе два DRM-устройства гибрида
+  # (amdgpu + nvidia) регистрируются в гонке, и minor'ы меняются местами от
+  # загруза к загрузу: встроенная матрица зовётся то eDP-1, то eDP-2
+  # (а подсветка — то amdgpu_bl1, то amdgpu_bl2). Всё, что привязано к имени
+  # выхода, при этом отваливается — так пропали виджеты рабочего стола
+  # noctalia, прибитые к eDP-2. Матрица физически на amdgpu (0000:65:00.0),
+  # поэтому фиксируем его первым: панель всегда eDP-1.
+  # Список сливается с пустым boot.initrd.kernelModules из hardware-configuration.nix.
+  boot.initrd.kernelModules = [ "amdgpu" ];
+
   networking.hostName = "nixos"; # Define your hostname.
 
   # Enable networking
