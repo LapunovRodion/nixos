@@ -70,6 +70,11 @@
           home-manager.useGlobalPkgs = true;
           home-manager.useUserPackages = true;
           home-manager.extraSpecialArgs = { inherit inputs; };
+          # Когда HM забирает под себя файл, который до этого лежал в ~/.config
+          # обычным файлом, активация падает: «existing file is in the way».
+          # С этим ключом HM сам отодвигает его в <имя>.hm-bak и идёт дальше.
+          # Понадобилось при переносе niri/config.kdl в конфиг.
+          home-manager.backupFileExtension = "hm-bak";
           home-manager.users.artur = import ./home.nix;
         }
       ];
