@@ -341,6 +341,7 @@
         "nixpkgs-cc": "nixpkgs-cc",
         "nixvim": "nixvim",
         "noctalia": "noctalia",
+        "torlink": "torlink",
         "zen-browser": "zen-browser"
       }
     },
@@ -372,6 +373,26 @@
         "owner": "nix-systems",
         "ref": "future-26.11",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "torlink": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1784697791,
+        "narHash": "sha256-z1PZzQrHosUdQo6PSxeehuxT1sOS4kpRfKnlN3uKU5k=",
+        "owner": "baairon",
+        "repo": "torlink",
+        "rev": "1aac0bf6415cb4b2abea21f11327b7fef6ea2a00",
+        "type": "github"
+      },
+      "original": {
+        "owner": "baairon",
+        "repo": "torlink",
         "type": "github"
       }
     },

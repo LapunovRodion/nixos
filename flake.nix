@@ -41,6 +41,16 @@
       inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     };
 
+    # torlink — TUI-поиск торрентов, в nixpkgs его нет. Апстрим держит пакет сам
+    # (nix/package.nix в репозитории) и, что важно, умеет собирать нативный
+    # WebRTC-модуль (node-datachannel) офлайн, с пиннингом libdatachannel —
+    # руками это в песочнице не собрать, там postinstall лезет в сеть за cmake-js.
+    # Поэтому берём готовый пакет апстрима, а не пакуем свой.
+    torlink = {
+      url = "github:baairon/torlink";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # hermes-agent — харнесс локального ИИ (управление системой) + память QMD.
     # Официальный flake на uv2nix + готовый nixosModules.default.
     # БЕЗ follows на nixpkgs: у него свой пиннинг под uv2nix, перебивать ломает сборку.

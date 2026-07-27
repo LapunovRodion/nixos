@@ -1,6 +1,11 @@
 { config, pkgs, lib, inputs, ... }:
 
 let
+  # tuistore + его зависимость ricekit — обоих нет в nixpkgs, пакуем сами.
+  # Разбор и оговорка про императивный one-key-install — в pkgs/tuistore.nix.
+  ricekit = pkgs.python3Packages.callPackage ./pkgs/ricekit.nix { };
+  tuistore = pkgs.python3Packages.callPackage ./pkgs/tuistore.nix { inherit ricekit; };
+
   # claude-code, всегда ходящий через hysteria (http-прокси на 3128).
   # Обёртка, а не глобальные HTTPS_PROXY — через VPN идёт только claude,
   # остальная система работает напрямую.
@@ -343,6 +348,14 @@ in
     ayugram-desktop   # форк Telegram (бинарник называется AyuGram)
     qbittorrent       # торренты
 
+    # torlink — TUI-искалка торрентов, дополняет qbittorrent (тот качает и сидит).
+    # Из flake апстрима, см. flake.nix. ВНИМАНИЕ: бинарь называется `torlnk`,
+    # без второй "i" — так он опубликован в npm, так же зовётся и в пакете.
+    inputs.torlink.packages.${pkgs.system}.default
+
+    # tuistore — витрина TUI-приложений (не установщик, см. pkgs/tuistore.nix)
+    tuistore
+
     # ---- Книги ----
     # Читалка. Библиотека живёт на сервере (Grimmory, http://server:6060),
     # книги берутся по OPDS, место чтения синхронизируется через
@@ -402,6 +415,17 @@ in
   # После ребилда авторизация делается один раз вручную: sudo tailscale up
   services.tailscale.enable = true;
   networking.firewall.trustedInterfaces = [ "tailscale0" ];
+
+  # ---------------------------------------------------------------
+  # Steam — модулем, а не пакетом
+  # ---------------------------------------------------------------
+  # `pkgs.steam` в systemPackages не хватает: модуль ещё включает 32-битную
+  # графику (hardware.graphics.enable32Bit — без неё не запустится ничего
+  # 32-битного, а это половина библиотеки) и ставит steam-run.
+  # На гибридном ноуте (дисплей на AMD, NVIDIA по PRIME offload) игры по
+  # умолчанию пойдут на iGPU. Чтобы игра шла на RTX 4050, в её свойствах в
+  # Steam → Launch Options прописать:  nvidia-offload %command%
+  programs.steam.enable = true;
 
   # ---------------------------------------------------------------
   # LocalSend — порт для обнаружения и приёма файлов
