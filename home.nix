@@ -1,4 +1,4 @@
-{ inputs, pkgs, ... }:
+{ inputs, lib, pkgs, ... }:
 {
   imports = [
     inputs.noctalia.homeModules.default
@@ -135,8 +135,55 @@
   programs.starship = {
     enable = true;
     enableFishIntegration = true;
+
+    # Transient prompt: после выполнения команды приглашение сворачивается
+    # до одного "❯". Скроллбек перестаёт быть стеной из повторяющихся
+    # сегментов — остаются только команды и их вывод. Пишет строчку
+    # enable_transience в инициализацию fish (HM, programs/starship.nix:185).
+    enableTransience = true;
+
     settings = {
       add_newline = true;
+
+      # Две строки в рамке. Всё, что идёт ПОСЛЕ $fill, прижимается к
+      # правому краю терминала, а промежуток затягивается точками.
+      format = lib.concatStrings [
+        "[╭─](bold black)"
+        "$os"
+        "$directory"
+        "$git_branch"
+        "$git_state"
+        "$git_status"
+        "$git_metrics"
+        "$nix_shell"
+        "$fill"
+        "$claude_model"
+        "$claude_context"
+        "$claude_cost"
+        "$cmd_duration"
+        "$status"
+        "$jobs"
+        "$battery"
+        "$time"
+        "$line_break"
+        "[╰─](bold black)"
+        "$character"
+      ];
+
+      # Линия между левым и правым блоком.
+      fill = {
+        symbol = "·";
+        style = "bold black";
+      };
+
+      # Снежинка NixOS. Дефолт — эмодзи ❄️, но она двойной ширины и
+      # ломает выравнивание; берём глиф из Nerd Font (U+F313).
+      os = {
+        disabled = false;
+        format = "[$symbol]($style)";
+        style = "bold blue";
+        symbols.NixOS = " ";
+      };
 
       character = {
         success_symbol = "[❯](bold green)";
@@ -144,14 +191,22 @@
         vimcmd_symbol = "[❮](bold yellow)";
       };
 
+      # Путь тусклый, корень репозитория — ярче: сразу видно, где начинается
+      # проект и где я внутри него.
       directory = {
-        style = "bold blue";
+        style = "blue";
+        repo_root_style = "bold blue";
         truncation_length = 3;
+        truncation_symbol = "…/";
         truncate_to_repo = false;
         read_only = " 󰌾";
       };
 
-      git_branch.style = "bold magenta";
+      # Дефолтный формат — "on  master"; слово "on" лишнее, глифа достаточно.
+      git_branch = {
+        style = "bold magenta";
+        format = "[$symbol$branch]($style) ";
+      };
       git_state.style = "bold red";
       git_status = {
         style = "bold yellow";
@@ -160,11 +215,51 @@
         diverged = "⇕⇡$ahead_count⇣$behind_count";
       };
 
+      # Сколько строк добавлено и убрано в рабочем дереве.
+      git_metrics = {
+        disabled = false;
+        added_style = "bold green";
+        deleted_style = "bold red";
+        format = "([+$added]($added_style))([−$deleted]($deleted_style)) ";
+      };
+
       # Показывать длительность только у команд дольше 2 секунд.
       cmd_duration = {
         min_time = 2000;
         style = "yellow";
-        format = "took [$duration]($style) ";
+        format = "[$duration]($style) ";
+      };
+
+      # Код выхода упавшей команды. По умолчанию модуль выключен.
+      status = {
+        disabled = false;
+        symbol = "✘ ";
+        style = "bold red";
+        format = "[$symbol$status]($style) ";
+      };
+
+      jobs = {
+        symbol = "";
+        style = "bold cyan";
+        format = "[$symbol$number]($style) ";
+      };
+
+      # Батарея показывается ТОЛЬКО когда пора беспокоиться: до 15% красным,
+      # до 30% жёлтым, выше — молчит. Порог в display — верхняя граница,
+      # поэтому список идёт по возрастанию.
+      battery = {
+        format = "[$symbol$percentage]($style) ";
+        display = [
+          { threshold = 15; style = "bold red"; }
+          { threshold = 30; style = "bold yellow"; }
+        ];
+      };
+
+      time = {
+        disabled = false;
+        format = "[ $time]($style)";
+        time_format = "%R";
+        style = "bold black";
       };
 
       # Видеть, что сижу в nix shell / nix develop.
@@ -173,6 +268,13 @@
         style = "bold cyan";
         format = "via [$symbol$state]($style) ";
       };
+
+      # Модули Claude Code (starship 1.26, включены по умолчанию): модель,
+      # шкала заполнения контекста с порогами 30/60/80 и стоимость сессии.
+      # Вне сессии не рисуются — у нулевого порога стоит hidden = true.
+      # Эмодзи в symbol оставлены дефолтными: они точно есть в любом шрифте,
+      # в отличие от глифов робота и монеты из Nerd Font.
+      claude_context.gauge_width = 5;
     };
   };
 
