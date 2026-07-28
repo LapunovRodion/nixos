@@ -342,6 +342,7 @@
         "nixvim": "nixvim",
         "noctalia": "noctalia",
         "torlink": "torlink",
+        "yazi-plugins": "yazi-plugins",
         "zen-browser": "zen-browser"
       }
     },
@@ -418,6 +419,22 @@
       "original": {
         "owner": "pyproject-nix",
         "repo": "uv2nix",
+        "type": "github"
+      }
+    },
+    "yazi-plugins": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785033839,
+        "narHash": "sha256-XakVwNsH/OUCHftW8kTL/VNmVnY/S9xjpMXI79GXZPA=",
+        "owner": "yazi-rs",
+        "repo": "plugins",
+        "rev": "4c63ed34bae678b0dfaae44c33bf3fbb5fdda5a6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "yazi-rs",
+        "repo": "plugins",
         "type": "github"
       }
     },

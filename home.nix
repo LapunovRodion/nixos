@@ -67,6 +67,20 @@
   programs.yazi = {
     enable = true;
     enableFishIntegration = true;
+
+    # mount.yazi — список дисков прямо в yazi: клавиша M открывает панель,
+    # там смонтировать/отмонтировать флешку. Ходит через udisksctl, поэтому
+    # sudo не спрашивает (нужен services.udisks2 — включён в configuration.nix).
+    # Точка монтирования получается вида /run/media/artur/<метка тома>.
+    plugins.mount = "${inputs.yazi-plugins}/mount.yazi";
+
+    keymap.mgr.prepend_keymap = [
+      {
+        on = "M";
+        run = "plugin mount";
+        desc = "Диски: смонтировать / отмонтировать";
+      }
+    ];
   };
 
   # --- ls -> eza, с иконками и статусом git прямо в листинге ---

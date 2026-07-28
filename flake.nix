@@ -19,6 +19,13 @@
     # noctalia v5 — без follows на nixpkgs, иначе ломается бинарный кэш cachix.
     noctalia.url = "github:noctalia-dev/noctalia/cachix";
 
+    # Официальные плагины yazi. Это обычный репозиторий-монорепо, не flake
+    # (отсюда flake = false) — из него берётся подкаталог mount.yazi.
+    yazi-plugins = {
+      url = "github:yazi-rs/plugins";
+      flake = false;
+    };
+
     # nixvim — neovim, целиком описанный на nix (декларативно, в git).
     nixvim = {
       url = "github:nix-community/nixvim";
