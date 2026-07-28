@@ -297,6 +297,18 @@ hotkey-overlay {
     // skip-at-startup
 }
 
+// Горячий угол слева сверху (наведение мышью → Overview) отключён:
+// слишком легко задеть случайно. Overview остаётся на Mod+O и на
+// свайпе четырьмя пальцами вверх по тачпаду.
+//
+// В niri 26.04 у hot-corners нет настройки по отдельным углам —
+// только общий выключатель.
+gestures {
+    hot-corners {
+        off
+    }
+}
+
 // Uncomment this line to ask the clients to omit their client-side decorations if possible.
 // If the client will specifically ask for CSD, the request will be honored.
 // Additionally, clients will be informed that they are tiled, removing some client-side rounded corners.
