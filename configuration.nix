@@ -395,7 +395,15 @@ in
     localsend
 
     # ---- Batch 3b: браузер + claude-desktop (из сторонних flake) ----
-    inputs.zen-browser.packages.${pkgs.system}.default
+    # Zen — ветка Twilight (ночные сборки) вместо стабильной (ревизия 2026-07-28).
+    # twilight, а не twilight-official: первый берёт зеркало, которое сам flake
+    # пересобирает и пиннит по хешу (обновляется через nix flake update), второй
+    # тянет катящийся официальный релиз и ломает eval, как только upstream
+    # перевыложит архив под тем же URL.
+    # Профиль общий со стабильной версией (Vendor=Mozilla, Name=Zen у обеих),
+    # так что история, вкладки, user.js и тема из noctalia остаются на месте.
+    # Бинарь и .desktop называются zen-twilight, а не zen-beta.
+    inputs.zen-browser.packages.${pkgs.system}.twilight
     # claude-desktop — обёрнут на VPN (claude-desktop-vpn в let выше), а не голый пакет
     claude-desktop-vpn
   ];
