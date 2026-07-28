@@ -29,7 +29,7 @@
 
       # ---- Оболочка ------------------------------------------------
       shell = {
-        font_family = "JetBrainsMono Nerd Font";
+        font_family = "Departure Mono";
         lang = "ru";
         app_icon_color = "primary";
         polkit_agent = true; # агент авторизации: без него sudo-диалоги GUI не всплывают
@@ -221,7 +221,7 @@
             rotation = 0.0;
             settings = {
               clock_style = "digital";
-              font_family = "JetBrainsMono Nerd Font";
+              font_family = "Departure Mono";
               center_text = false;
               background_radius = 0;
               shadow = true;

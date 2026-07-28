@@ -313,9 +313,14 @@
   programs.kitty = {
     enable = true;
 
+    # Departure Mono рисован по пиксельной сетке, поэтому кегль взят
+    # целым: на дробном (было 11.5) хинтинг разъезжается и штрихи
+    # получаются разной толщины. Недостающие глифы (иконки, powerline
+    # в табах) kitty дотягивает через fontconfig — там следом стоит
+    # JetBrainsMono Nerd Font.
     font = {
-      name = "JetBrainsMono Nerd Font";
-      size = 11.5;
+      name = "Departure Mono";
+      size = 12;
     };
 
     settings = {

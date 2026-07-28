@@ -473,6 +473,14 @@ in
   fonts = {
     enableDefaultPackages = true;
     packages = with pkgs; [
+      # Основной моноширинный. Пиксельный, обводочный (OTF), одно
+      # начертание — ни bold, ни italic: их fontconfig синтезирует.
+      # Nerd-глифов в нём НОЛЬ (проверено по charset: диапазон PUA
+      # E000-F8FF пустой), поэтому JetBrainsMono Nerd Font обязан
+      # остаться следующим в defaultFonts.monospace — иначе иконки
+      # в noctalia, промпте fish и табах kitty станут «тофу».
+      departure-mono
+
       nerd-fonts.jetbrains-mono   # ttf-jetbrains-mono-nerd
       nerd-fonts.meslo-lg         # ttf-meslo-nerd
       noto-fonts                  # noto-fonts
@@ -493,7 +501,9 @@ in
       terminus_font_ttf           # ttf-terminus-font
     ];
     fontconfig.defaultFonts = {
-      monospace = [ "JetBrainsMono Nerd Font" "MesloLGS Nerd Font" ];
+      # Departure Mono первым, Nerd Font сразу за ним — подхватывает
+      # всё, чего в Departure нет: иконки, стрелки powerline, ✓/✗.
+      monospace = [ "Departure Mono" "JetBrainsMono Nerd Font" "MesloLGS Nerd Font" ];
       sansSerif = [ "Noto Sans" "Open Sans" "Cantarell" ];
       serif     = [ "Noto Serif" ];
       emoji     = [ "Noto Color Emoji" ];
