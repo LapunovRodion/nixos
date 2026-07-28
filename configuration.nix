@@ -487,6 +487,20 @@ in
       # только как декоративный — включать точечно, не по умолчанию.
       departure-mono
 
+      # Основной гротеск: интерфейсы GTK и текст в вебе, где сайт
+      # не назвал шрифт сам. Берём ibm-plex.sans, а не ibm-plex
+      # целиком: полный пакет тянет арабский, деванагари, тайский,
+      # иврит, японский и корейский — 334 МиБ замыкания против 5.3.
+      # Не путать с ibm-plex.sans-variable: там семейство называется
+      # «IBM Plex Sans Var», и defaultFonts по имени его не найдёт.
+      ibm-plex.sans
+
+      # Основной шрифт с засечками: длинные статьи, читалки, всё,
+      # что просит serif. ParaType рисовал его по госпрограмме под
+      # русский, так что кириллица здесь первична, а не пририсована
+      # к латинице задним числом.
+      paratype-pt-serif
+
       nerd-fonts.jetbrains-mono   # ttf-jetbrains-mono-nerd
       nerd-fonts.meslo-lg         # ttf-meslo-nerd
       noto-fonts                  # noto-fonts
@@ -510,8 +524,13 @@ in
       # Lyth Mono самодостаточен (иконки и powerline у него свои),
       # JetBrainsMono остаётся страховкой на совсем экзотику.
       monospace = [ "LythMonoTerm Nerd Font" "JetBrainsMono Nerd Font" "MesloLGS Nerd Font" ];
-      sansSerif = [ "Noto Sans" "Open Sans" "Cantarell" ];
-      serif     = [ "Noto Serif" ];
+
+      # Noto остаётся вторым не как «запасной похуже», а как ловец
+      # экзотики: у Plex 893 знака, у PT Serif 717 — обоим хватает
+      # на кириллицу с типографикой, но на греческом, деванагари
+      # или стрелках подхватит уже Noto.
+      sansSerif = [ "IBM Plex Sans" "Noto Sans" "Open Sans" ];
+      serif     = [ "PT Serif" "Noto Serif" ];
       emoji     = [ "Noto Color Emoji" ];
     };
   };
