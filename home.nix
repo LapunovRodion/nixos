@@ -30,6 +30,9 @@
   # выход содержит ровно одну тему. Имя темы внутри пакета не совпадает с
   # именем атрибута — оно kebab-case: catppuccin-latte-dark-cursors.
   home.pointerCursor = {
+    # Раньше генерация конфига включалась самим фактом объявления блока,
+    # теперь home-manager это ругает как deprecated и хочет явный флаг.
+    enable = true;
     package = pkgs.catppuccin-cursors.latteDark;
     name = "catppuccin-latte-dark-cursors";
     size = 24;
