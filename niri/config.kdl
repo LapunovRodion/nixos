@@ -386,6 +386,23 @@ window-rule {
     clip-to-geometry true
 }
 
+// Терминал полупрозрачен ВСЕГДА.
+//
+// Своей настройки kitty (background_opacity) для этого мало: она
+// красит только ячейки с фоном по умолчанию. Любой TUI — nvim, yazi,
+// lazygit — заливает экран собственным цветом фона, и такие ячейки
+// рисуются глухими. Поэтому прозрачность задаётся здесь: niri гасит
+// поверхность окна целиком, независимо от того, что внутри.
+//
+// Расплата: текст тоже становится полупрозрачным. Отсюда 0.92, а не
+// 0.85 — на более низких значениях буквы начинают спорить с обоями.
+// background_opacity в kitty при этом снят в 1.0, иначе множители
+// перемножались бы и фон уходил в 0.8.
+window-rule {
+    match app-id="^kitty$"
+    opacity 0.92
+}
+
 binds {
     // Keys consist of modifiers separated by + signs, followed by an XKB key name
     // in the end. To find an XKB name for a particular key, you may use a program

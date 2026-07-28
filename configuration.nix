@@ -6,6 +6,9 @@ let
   ricekit = pkgs.python3Packages.callPackage ./pkgs/ricekit.nix { };
   tuistore = pkgs.python3Packages.callPackage ./pkgs/tuistore.nix { inherit ricekit; };
 
+  # Основной моноширинный, тоже мимо nixpkgs — см. pkgs/lyth-mono.nix.
+  lyth-mono = pkgs.callPackage ./pkgs/lyth-mono.nix { };
+
   # claude-code, всегда ходящий через hysteria (http-прокси на 3128).
   # Обёртка, а не глобальные HTTPS_PROXY — через VPN идёт только claude,
   # остальная система работает напрямую.
@@ -473,12 +476,15 @@ in
   fonts = {
     enableDefaultPackages = true;
     packages = with pkgs; [
-      # Основной моноширинный. Пиксельный, обводочный (OTF), одно
-      # начертание — ни bold, ни italic: их fontconfig синтезирует.
-      # Nerd-глифов в нём НОЛЬ (проверено по charset: диапазон PUA
-      # E000-F8FF пустой), поэтому JetBrainsMono Nerd Font обязан
-      # остаться следующим в defaultFonts.monospace — иначе иконки
-      # в noctalia, промпте fish и табах kitty станут «тофу».
+      # Основной моноширинный: Iosevka-сборка с Nerd-глифами внутри.
+      # ~17900 кодовых точек против 1079 у Departure Mono, который
+      # стоял тут раньше и сыпался в «тофу» на всём, кроме базовой
+      # латиницы с кириллицей. Четыре веса плюс курсивы — синтетика
+      # для bold больше не нужна.
+      lyth-mono
+
+      # Departure Mono оставлен: пиксельный, красивый, но годится
+      # только как декоративный — включать точечно, не по умолчанию.
       departure-mono
 
       nerd-fonts.jetbrains-mono   # ttf-jetbrains-mono-nerd
@@ -501,9 +507,9 @@ in
       terminus_font_ttf           # ttf-terminus-font
     ];
     fontconfig.defaultFonts = {
-      # Departure Mono первым, Nerd Font сразу за ним — подхватывает
-      # всё, чего в Departure нет: иконки, стрелки powerline, ✓/✗.
-      monospace = [ "Departure Mono" "JetBrainsMono Nerd Font" "MesloLGS Nerd Font" ];
+      # Lyth Mono самодостаточен (иконки и powerline у него свои),
+      # JetBrainsMono остаётся страховкой на совсем экзотику.
+      monospace = [ "LythMonoTerm Nerd Font" "JetBrainsMono Nerd Font" "MesloLGS Nerd Font" ];
       sansSerif = [ "Noto Sans" "Open Sans" "Cantarell" ];
       serif     = [ "Noto Serif" ];
       emoji     = [ "Noto Color Emoji" ];
