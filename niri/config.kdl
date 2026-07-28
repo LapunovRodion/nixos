@@ -276,7 +276,7 @@ layout {
 // области (slurp) пропадал — казалось, что скриншот-хоткей не работает.
 // Сам пакет ставится в home.nix (home.pointerCursor).
 cursor {
-    xcursor-theme "Bibata-Modern-Classic"
+    xcursor-theme "catppuccin-latte-dark-cursors"
     xcursor-size 24
 }
 

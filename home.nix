@@ -25,9 +25,13 @@
   # "error loading xcursor crosshair: no default icon", из-за чего slurp
   # (выделение области под скриншот) выглядел так, будто ничего не запустилось.
   # pointerCursor сам ставит пакет, XCURSOR_THEME/SIZE и настройки GTK.
+  #
+  # catppuccin-cursors собран по вариантам (latteDark, mochaDark, …), каждый
+  # выход содержит ровно одну тему. Имя темы внутри пакета не совпадает с
+  # именем атрибута — оно kebab-case: catppuccin-latte-dark-cursors.
   home.pointerCursor = {
-    package = pkgs.bibata-cursors;
-    name = "Bibata-Modern-Classic";
+    package = pkgs.catppuccin-cursors.latteDark;
+    name = "catppuccin-latte-dark-cursors";
     size = 24;
     gtk.enable = true;
   };
