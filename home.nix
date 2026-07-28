@@ -4,6 +4,7 @@
     inputs.noctalia.homeModules.default
     inputs.nixvim.homeModules.nixvim
     ./noctalia.nix        # весь конфиг шелла — бар, док, виджеты, тема, плагины
+    ./startpage.nix       # стартовая страница браузера (html собирается из nix)
   ];
 
   home.stateVersion = "26.05";
@@ -46,6 +47,16 @@
     // на русских страницах язык определяется как x-cyrillic.
     user_pref("font.name.monospace.x-western", "LythMonoTerm Nerd Font");
     user_pref("font.name.monospace.x-cyrillic", "LythMonoTerm Nerd Font");
+
+    // Своя стартовая страница (собирается в ./startpage.nix). Это кнопка
+    // «домой» и новые окна. НОВУЮ ВКЛАДКУ так не подменить: у Zen нет
+    // настройки под кастомный URL, zen.urlbar.replace-newtab лишь
+    // возвращает старую страницу — для этого понадобилось бы расширение.
+    //
+    // browser.startup.page здесь сознательно не задан: в профиле его нет,
+    // значит работает дефолт сборки, а жёсткая единица отобрала бы
+    // восстановление прошлой сессии при запуске.
+    user_pref("browser.startup.homepage", "file:///home/artur/.local/share/startpage/index.html");
   '';
 
   # Тема курсоров. До этого в системе не было НИ ОДНОЙ — niri ругался
