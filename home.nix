@@ -60,16 +60,6 @@
     // значит работает дефолт сборки, а жёсткая единица отобрала бы
     // восстановление прошлой сессии при запуске.
     user_pref("browser.startup.homepage", "https://server.taila27ec6.ts.net:8445");
-
-    // Имена tailnet (*.ts.net) живут только в MagicDNS, а DoH резолвит
-    // мимо системного резолвера: внешний сервер отвечает NXDOMAIN, и
-    // Firefox на такой ответ к системному DNS уже НЕ откатывается.
-    // Отсюда "server not found" на стартовой странице выше и NetworkError
-    // в расширении Bitwarden при сохранении записи в Vaultwarden.
-    // Параметр по умолчанию пуст (список localhost,local лежит в отдельном
-    // network.trr.builtin-excluded-domains), так что ничего не затирается —
-    // DoH продолжает работать для всего остального.
-    user_pref("network.trr.excluded-domains", "ts.net");
   '';
 
   # Тема курсоров. До этого в системе не было НИ ОДНОЙ — niri ругался
