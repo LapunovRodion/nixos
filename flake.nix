@@ -1,5 +1,5 @@
 {
-  description = "artur NixOS: niri + noctalia + hysteria + claude";
+  description = "artur NixOS: laptop + desktop, niri + noctalia + hysteria + claude";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -18,6 +18,32 @@
 
     # noctalia v5 — без follows на nixpkgs, иначе ломается бинарный кэш cachix.
     noctalia.url = "github:noctalia-dev/noctalia/cachix";
+
+    # Плагины noctalia. Витрина внутри шелла ставит их императивно в
+    # ~/.local/state/noctalia/plugins — на новой машине это пришлось бы
+    # повторять руками. Вместо этого репозитории пиннятся здесь и
+    # подключаются как источники вида kind = "path" (см. home/noctalia.nix):
+    # noctalia читает файлы плагина прямо из каталога источника, а /nix/store
+    # каталогом быть вполне может. Раскладка репозиториев — плоская,
+    # <плагин>/plugin.toml, ровно та, которую ждёт сканер.
+    # Обновление плагинов: nix flake update noctalia-official-plugins (или
+    # -community-) → rebuild. Кнопка Update в витрине при этом не работает —
+    # она умеет только git-источники, и это осознанный размен.
+    noctalia-official-plugins = {
+      url = "github:noctalia-dev/official-plugins";
+      flake = false;
+    };
+    noctalia-community-plugins = {
+      url = "github:noctalia-dev/community-plugins";
+      flake = false;
+    };
+
+    # agenix — секреты в git в зашифрованном виде (age поверх ssh-ключей).
+    # Расшифровка на этапе активации системы, ключом хоста.
+    agenix = {
+      url = "github:ryantm/agenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     # Официальные плагины yazi. Это обычный репозиторий-монорепо, не flake
     # (отсюда flake = false) — из него берётся подкаталог mount.yazi.
@@ -64,27 +90,43 @@
     hermes-agent.url = "github:NousResearch/hermes-agent";
   };
 
-  outputs = { self, nixpkgs, home-manager, noctalia, ... }@inputs: {
-    nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      specialArgs = { inherit inputs; };
-      modules = [
-        ./configuration.nix
-        noctalia.nixosModules.default
-        inputs.hermes-agent.nixosModules.default
-        home-manager.nixosModules.home-manager
-        {
-          home-manager.useGlobalPkgs = true;
-          home-manager.useUserPackages = true;
-          home-manager.extraSpecialArgs = { inherit inputs; };
-          # Когда HM забирает под себя файл, который до этого лежал в ~/.config
-          # обычным файлом, активация падает: «existing file is in the way».
-          # С этим ключом HM сам отодвигает его в <имя>.hm-bak и идёт дальше.
-          # Понадобилось при переносе niri/config.kdl в конфиг.
-          home-manager.backupFileExtension = "hm-bak";
-          home-manager.users.artur = import ./home.nix;
-        }
-      ];
+  outputs = { self, nixpkgs, home-manager, noctalia, ... }@inputs:
+    let
+      # Один сборщик хоста на все машины. Отличия — целиком в
+      # ./hosts/<имя>, включая hardware-configuration.nix и значения
+      # опций local.* (объявлены в ./modules/options.nix).
+      mkHost = name: nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit inputs; };
+        modules = [
+          ./modules/options.nix
+          ./modules/common.nix
+          ./hosts/${name}
+          noctalia.nixosModules.default
+          inputs.hermes-agent.nixosModules.default
+          inputs.agenix.nixosModules.default
+          home-manager.nixosModules.home-manager
+          {
+            home-manager.useGlobalPkgs = true;
+            home-manager.useUserPackages = true;
+            home-manager.extraSpecialArgs = { inherit inputs; };
+            # Когда HM забирает под себя файл, который до этого лежал в ~/.config
+            # обычным файлом, активация падает: «existing file is in the way».
+            # С этим ключом HM сам отодвигает его в <имя>.hm-bak и идёт дальше.
+            # Понадобилось при переносе niri/config.kdl в конфиг.
+            home-manager.backupFileExtension = "hm-bak";
+            home-manager.users.artur = import ./home/home.nix;
+          }
+        ];
+      };
+    in
+    {
+      # Сборка: sudo nixos-rebuild switch --flake ~/nixos#laptop (или #desktop).
+      # Имя обязательно указывать явно — атрибута под именем хоста «nixos»
+      # больше нет, а имена машин теперь laptop/desktop.
+      nixosConfigurations = {
+        laptop = mkHost "laptop";
+        desktop = mkHost "desktop";
+      };
     };
-  };
 }

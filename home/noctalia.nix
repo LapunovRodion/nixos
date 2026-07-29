@@ -1,4 +1,18 @@
-{ config, ... }:
+{ config, osConfig, lib, inputs, ... }:
+
+let
+  # Машинозависимое — из опций local.* (объявлены в modules/options.nix,
+  # заданы в hosts/<машина>/default.nix). osConfig — конфиг системы.
+  inherit (osConfig.local) primaryOutput outputs hasBattery uiScale flakeAttr;
+  scr = osConfig.local.screen;
+
+  # Координаты виджетов — в ЛОГИЧЕСКИХ пикселях, от центра виджета.
+  # Те, что прижаты к левому верхнему углу, остаются числами: на любом
+  # экране они окажутся там же. А вот прижатые к центру и к низу обязаны
+  # считаться от размера экрана, иначе на другом мониторе уедут.
+  centerX = scr.width * 1.0 / 2;
+  fromBottom = margin: scr.height * 1.0 - margin;
+in
 
 # =============================================================
 # noctalia — шелл: бар, док, виджеты рабочего стола, локскрин,
@@ -117,6 +131,8 @@
         margin_ends = 0;
         start = [ "group:g1" "wallpaper" "pulse" "nix-monitor" ];
         center = [ "workspaces" "cat" ];
+        # battery — только там, где батарея есть: на десктопе виджет
+        # показывал бы пустоту.
         end = [
           "control-center"
           "tray"
@@ -124,9 +140,9 @@
           "network"
           "volume"
           "bluetooth"
-          "battery"
-          "session"
-        ];
+        ]
+        ++ lib.optional hasBattery "battery"
+        ++ [ "session" ];
         # Часы — отдельной «капсулой» на фоне surface_variant.
         capsule_group = [
           {
@@ -157,32 +173,67 @@
       };
 
       # ---- Плагины -------------------------------------------------
-      # Код плагинов ставится витриной в ~/.local/state/noctalia/plugins/,
-      # это НЕ декларативно. Здесь — какие из поставленных включены.
-      # Их внешние зависимости (bw, python3, playerctl, evtest) — в
-      # configuration.nix; без них плагин молча мёртв.
-      plugins.enabled = [
-        "noctalia/bitwarden"
-        "noctalia/bongocat"
-        "lowcache/claude-companion"
-        "avivbintangaringga/nix-monitor"
-      ];
+      # Раньше код плагинов ставила витрина — клонировала репозитории в
+      # ~/.local/state/noctalia/plugins/ и раскладывала копии. На новой
+      # машине это пришлось бы повторять кликами.
+      #
+      # Теперь оба репозитория пиннятся во flake, а сюда прописываются
+      # источниками вида kind = "path": для них noctalia читает файлы
+      # плагина ПРЯМО из каталога источника (src/scripting/plugin_file_cache.cpp),
+      # ничего не клонируя и никуда не записывая, — а каталог в /nix/store
+      # ровно такой, только read-only. Раскладка репозиториев (<плагин>/plugin.toml)
+      # совпадает с тем, что ждёт сканер (src/scripting/plugin_catalog.cpp).
+      #
+      # Имена источников оставлены заводскими (official/community): под ними
+      # плагины уже прописаны в состоянии и в витрине.
+      #
+      # ЦЕНА РЕШЕНИЯ: кнопка Update в витрине больше ничего не делает — она
+      # умеет только git-источники. Обновление плагинов теперь такое:
+      #   nix flake update noctalia-community-plugins && rebuild
+      plugins = {
+        auto_update = false;   # обновляет git-источники; здесь их нет
+        source = [
+          {
+            name = "official";
+            kind = "path";
+            location = "${inputs.noctalia-official-plugins}";
+          }
+          {
+            name = "community";
+            kind = "path";
+            location = "${inputs.noctalia-community-plugins}";
+          }
+        ];
+
+        # Какие из доступных плагинов включены. Их внешние зависимости
+        # (bw, python3, playerctl, evtest) — в modules/common.nix;
+        # без них плагин молча мёртв.
+        enabled = [
+          "noctalia/bitwarden"
+          "noctalia/bongocat"
+          "lowcache/claude-companion"
+          "avivbintangaringga/nix-monitor"
+        ];
+      };
 
       plugin_settings."avivbintangaringga/nix-monitor" = {
         # Кнопка Update. Порядок намеренный: бамп lock → КОММИТ → rebuild,
         # чтобы поколение всегда отвечало коммиту. Коммитится только
         # flake.lock, прочие правки в дереве не затрагиваются.
+        # Имя хоста во флейке подставляется из local.flakeAttr: у машин
+        # разные цели сборки, а команда одна.
         update_command =
           "cd /home/artur/nixos"
           + " && nix flake update"
           + " && git commit -m 'flake.lock: bump (via nix-monitor)' -- flake.lock"
-          + " && sudo nixos-rebuild switch --flake .#nixos";
+          + " && sudo nixos-rebuild switch --flake .#${flakeAttr}";
       };
 
       # ---- Уведомления и OSD ---------------------------------------
-      # 0.7 — экран 2880x1800 при scale 1.75, дефолтный размер великоват.
-      notification.scale = 0.7;
-      osd.scale = 0.7;
+      # Зависит от плотности экрана: на hidpi-панели ноута заводской
+      # размер великоват (там 0.7), на обычном 1080p — в самый раз.
+      notification.scale = uiScale;
+      osd.scale = uiScale;
 
       # ---- Бездействие ---------------------------------------------
       idle = {
@@ -197,9 +248,11 @@
       location.auto_locate = true; # координаты по IP: погода + ночной режим
 
       # ---- Виджеты рабочего стола ----------------------------------
-      # ВНИМАНИЕ: output прибит к имени выхода. На гибриде имена скакали
-      # между загрузами (eDP-1 / eDP-2) и виджеты исчезали — вылечено
-      # boot.initrd.kernelModules = [ "amdgpu" ] в configuration.nix.
+      # ВНИМАНИЕ: output прибит к ИМЕНИ выхода — если имя не совпадёт,
+      # виджет просто не появится, без единого сообщения. Имя берётся из
+      # local.primaryOutput. На гибридном ноуте имена ещё и скакали между
+      # загрузами (eDP-1 / eDP-2) — вылечено порядком загрузки модулей DRM,
+      # см. boot.initrd.kernelModules в hosts/laptop/default.nix.
       # cx/cy — координаты центра в логических пикселях.
       desktop_widgets = {
         schema_version = 2;
@@ -215,7 +268,7 @@
           # часы
           desktop-widget-0000000000000001 = {
             type = "clock";
-            output = "eDP-1";
+            output = primaryOutput;
             cx = 247.0; cy = 130.5;
             box_width = 384.0; box_height = 128.0;
             rotation = 0.0;
@@ -231,7 +284,7 @@
           # монитор ресурсов: RAM + CPU графиком
           desktop-widget-0000000000000002 = {
             type = "sysmon";
-            output = "eDP-1";
+            output = primaryOutput;
             cx = 151.0; cy = 258.5;
             box_width = 192.0; box_height = 128.0;
             rotation = 0.0;
@@ -243,11 +296,11 @@
               background_radius = 0;
             };
           };
-          # визуализатор звука
+          # визуализатор звука — по центру, у нижнего края
           desktop-widget-0000000000000003 = {
             type = "audio_visualizer";
-            output = "eDP-1";
-            cx = 823.0; cy = 898.5;
+            output = primaryOutput;
+            cx = centerX; cy = fromBottom 130.5;
             box_width = 0.0; box_height = 0.0;
             rotation = 0.0;
             settings = { bands = 32; show_when_idle = true; };
@@ -255,7 +308,7 @@
           # погода (координаты — из location.auto_locate)
           desktop-widget-0000000000000004 = {
             type = "weather";
-            output = "eDP-1";
+            output = primaryOutput;
             cx = 247.0; cy = 402.5;
             box_width = 384.0; box_height = 160.0;
             rotation = 0.0;
@@ -264,7 +317,7 @@
           # орб claude-companion: дышит в такт сессии Claude Code
           desktop-widget-0000000000000005 = {
             type = "lowcache/claude-companion:orb";
-            output = "eDP-1";
+            output = primaryOutput;
             cx = 343.0; cy = 258.5;
             box_width = 192.0; box_height = 128.0;
             rotation = 0.0;
@@ -274,16 +327,16 @@
       };
 
       # ---- Виджеты локскрина ---------------------------------------
-      # Форма ввода пароля продублирована на оба имени выхода — это
-      # обход той же чехарды eDP-1/eDP-2, который noctalia сделала сама.
-      # После фикса initrd имя стабильно eDP-1, запись @eDP-2 можно
-      # выкинуть — оставлена как страховка, ничего не стоит.
+      # Форма ввода пароля кладётся на КАЖДЫЙ выход машины: на многомониторной
+      # сборке иначе пришлось бы угадывать, на каком экране появится ввод.
+      # Раньше здесь была ручная пара @eDP-1/@eDP-2 — страховка от чехарды
+      # имён на гибриде; теперь список выходов берётся из local.outputs.
       lockscreen_widgets =
         let
           loginBox = out: {
             type = "login_box";
             output = out;
-            cx = 823.0; cy = 910.0;
+            cx = centerX; cy = fromBottom 119.0;
             box_width = 400.0; box_height = 70.0;
             rotation = 0.0;
             settings = {
@@ -303,12 +356,11 @@
         {
           enabled = true;
           schema_version = 2;
-          widget_order = [ "lockscreen-login-box@eDP-1" "lockscreen-login-box@eDP-2" ];
+          widget_order = map (out: "lockscreen-login-box@${out}") outputs;
           grid = { visible = true; cell_size = 16; major_interval = 4; };
-          widget = {
-            "lockscreen-login-box@eDP-1" = loginBox "eDP-1";
-            "lockscreen-login-box@eDP-2" = loginBox "eDP-2";
-          };
+          widget = lib.listToAttrs (
+            map (out: lib.nameValuePair "lockscreen-login-box@${out}" (loginBox out)) outputs
+          );
         };
     };
   };

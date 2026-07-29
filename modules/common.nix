@@ -3,11 +3,11 @@
 let
   # tuistore + его зависимость ricekit — обоих нет в nixpkgs, пакуем сами.
   # Разбор и оговорка про императивный one-key-install — в pkgs/tuistore.nix.
-  ricekit = pkgs.python3Packages.callPackage ./pkgs/ricekit.nix { };
-  tuistore = pkgs.python3Packages.callPackage ./pkgs/tuistore.nix { inherit ricekit; };
+  ricekit = pkgs.python3Packages.callPackage ../pkgs/ricekit.nix { };
+  tuistore = pkgs.python3Packages.callPackage ../pkgs/tuistore.nix { inherit ricekit; };
 
   # Основной моноширинный, тоже мимо nixpkgs — см. pkgs/lyth-mono.nix.
-  lyth-mono = pkgs.callPackage ./pkgs/lyth-mono.nix { };
+  lyth-mono = pkgs.callPackage ../pkgs/lyth-mono.nix { };
 
   # claude-code, всегда ходящий через hysteria (http-прокси на 3128).
   # Обёртка, а не глобальные HTTPS_PROXY — через VPN идёт только claude,
@@ -111,30 +111,18 @@ let
     '';
   };
 in
+# =============================================================
+# Общая часть обеих машин. Всё, что зависит от железа — имя хоста,
+# видеодрайвер, модули initrd, stateVersion, hardware-configuration —
+# живёт в hosts/<имя>/default.nix, а не здесь.
+# =============================================================
 {
-  imports =
-    [ # Include the results of the hardware scan.
-      ./hardware-configuration.nix
-    ];
-
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
   # Use latest kernel.
   boot.kernelPackages = pkgs.linuxPackages_latest;
-
-  # amdgpu грузится из initrd — ДО nvidia. Иначе два DRM-устройства гибрида
-  # (amdgpu + nvidia) регистрируются в гонке, и minor'ы меняются местами от
-  # загруза к загрузу: встроенная матрица зовётся то eDP-1, то eDP-2
-  # (а подсветка — то amdgpu_bl1, то amdgpu_bl2). Всё, что привязано к имени
-  # выхода, при этом отваливается — так пропали виджеты рабочего стола
-  # noctalia, прибитые к eDP-2. Матрица физически на amdgpu (0000:65:00.0),
-  # поэтому фиксируем его первым: панель всегда eDP-1.
-  # Список сливается с пустым boot.initrd.kernelModules из hardware-configuration.nix.
-  boot.initrd.kernelModules = [ "amdgpu" ];
-
-  networking.hostName = "nixos"; # Define your hostname.
 
   # Enable networking
   networking.networkmanager.enable = true;
@@ -212,27 +200,6 @@ in
   ];
 
   # ---------------------------------------------------------------
-  # NVIDIA (RTX 4050, dGPU) — драйвер + CUDA для локальных LLM.
-  # Ноут ROG Zephyrus G14 GA403UU: гибрид AMD iGPU (дисплей) + NVIDIA (по запросу).
-  # PRIME offload: дисплей на amdgpu, NVIDIA просыпается под нагрузку/`nvidia-offload`.
-  # ---------------------------------------------------------------
-  hardware.graphics.enable = true;
-  services.xserver.videoDrivers = [ "nvidia" ];
-  hardware.nvidia = {
-    modesetting.enable = true;
-    open = true;                        # открытый модуль ядра — ок для RTX 40xx (Ada)
-    nvidiaSettings = true;
-    package = config.boot.kernelPackages.nvidiaPackages.stable;
-    powerManagement.enable = true;      # корректные suspend/resume + runtime-PM dGPU
-    prime = {
-      offload.enable = true;
-      offload.enableOffloadCmd = true;  # обёртка `nvidia-offload <app>`
-      amdgpuBusId = "PCI:101:0:0";      # AMD iGPU  (0000:65:00.0)
-      nvidiaBusId = "PCI:1:0:0";        # NVIDIA    (0000:01:00.0)
-    };
-  };
-
-  # ---------------------------------------------------------------
   # Ollama — раннер локальных LLM (движок llama.cpp), OpenAI-API на :11434.
   # Основной под Hermes 3 8B; 14B через авто-оффлоад. llama.cpp — позже точечно.
   # ---------------------------------------------------------------
@@ -292,13 +259,26 @@ in
   # ---------------------------------------------------------------
   # 3. Hysteria (VPN-клиент)
   # ---------------------------------------------------------------
+  # Конфиг с ключом сервера — секрет, поэтому лежит в репозитории
+  # ЗАШИФРОВАННЫМ (secrets/hysteria-client.age, agenix) и расшифровывается
+  # при активации системы приватным ключом хоста (/etc/ssh/ssh_host_ed25519_key).
+  # path задан явно: юнит и сам hysteria продолжают видеть привычный
+  # /etc/hysteria/client.yaml, только теперь это симлинк в /run/agenix.
+  # Получатели (кто может расшифровать) перечислены в secrets/secrets.nix;
+  # после добавления новой машины — `agenix -r` и коммит.
+  age.secrets.hysteria-client = {
+    file = ../secrets/hysteria-client.age;
+    path = "/etc/hysteria/client.yaml";
+    mode = "0400";
+  };
+
   systemd.services.hysteria-client = {
     description = "Hysteria 2 client";
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
-      ExecStart = "${pkgs.hysteria}/bin/hysteria client -c /etc/hysteria/client.yaml";
+      ExecStart = "${pkgs.hysteria}/bin/hysteria client -c ${config.age.secrets.hysteria-client.path}";
       Restart = "on-failure";
       RestartSec = 5;
       CapabilityBoundingSet = [ "CAP_NET_ADMIN" "CAP_NET_BIND_SERVICE" ];
@@ -320,6 +300,10 @@ in
     xwayland-satellite   # X11-приложения
     # сеть
     hysteria
+    # agenix — CLI для работы с секретами: `agenix -e <файл>.age` править,
+    # `agenix -r` перешифровать на всех получателей из secrets/secrets.nix.
+    # Запускать ИЗ каталога secrets/ — он ищет secrets.nix рядом.
+    inputs.agenix.packages.${pkgs.system}.default
     # 4. Claude Code (CLI, unfree) — обёрнутый на VPN, см. let выше
     claude-code-vpn
     # 5. Obsidian (unfree) — само хранилище синхронизируется через syncthing ниже
@@ -476,9 +460,10 @@ in
   # `pkgs.steam` в systemPackages не хватает: модуль ещё включает 32-битную
   # графику (hardware.graphics.enable32Bit — без неё не запустится ничего
   # 32-битного, а это половина библиотеки) и ставит steam-run.
-  # На гибридном ноуте (дисплей на AMD, NVIDIA по PRIME offload) игры по
-  # умолчанию пойдут на iGPU. Чтобы игра шла на RTX 4050, в её свойствах в
-  # Steam → Launch Options прописать:  nvidia-offload %command%
+  # ВАЖНО про ноут: там гибрид (дисплей на AMD, NVIDIA по PRIME offload),
+  # и игра по умолчанию пойдёт на iGPU. Чтобы она шла на dGPU, в свойствах
+  # игры в Steam → Launch Options прописать:  nvidia-offload %command%
+  # На десктопе видеокарта одна — ничего дописывать не нужно.
   programs.steam.enable = true;
 
   # ---------------------------------------------------------------
@@ -560,6 +545,6 @@ in
   # Enable the OpenSSH daemon.
   services.openssh.enable = true;
   services.openssh.settings.PasswordAuthentication = true;
-
-  system.stateVersion = "26.05"; # Did you read the comment?
+  # Побочный, но важный эффект: host-ключ /etc/ssh/ssh_host_ed25519_key,
+  # который agenix использует для расшифровки секретов.
 }

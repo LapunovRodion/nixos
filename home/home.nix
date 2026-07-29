@@ -1,4 +1,7 @@
-{ inputs, lib, pkgs, ... }:
+{ inputs, lib, pkgs, osConfig, ... }:
+# osConfig — конфиг СИСТЕМЫ. Доступен потому, что home-manager подключён
+# модулем NixOS; через него читаются опции local.* (см. modules/options.nix),
+# то есть всё, чем ноут отличается от десктопа.
 {
   imports = [
     inputs.noctalia.homeModules.default
@@ -21,6 +24,11 @@
   # =============================================================
   xdg.configFile."niri/config.kdl".source = ./niri/config.kdl;
 
+  # Единственная машинозависимая часть конфига композитора — блоки output
+  # (разрешение, масштаб, взаимное расположение мониторов). Файл берётся из
+  # hosts/<машина>/outputs.kdl и подключается строкой include в config.kdl.
+  xdg.configFile."niri/outputs.kdl".source = osConfig.local.niriOutputs;
+
   # =============================================================
   # Zen — настройки профиля.
   #
@@ -29,14 +37,16 @@
   # всей историей и вкладками. Пишем прямо в его user.js.
   #
   # Имя каталога профиля с рандомным префиксом — из ~/.config/zen/
-  # profiles.ini. Если профиль когда-нибудь пересоздать, путь надо
-  # будет поправить: home-manager подставит файл в несуществующий
-  # каталог и молча ничего не сделает.
+  # profiles.ini, и на каждой машине оно своё, поэтому лежит в
+  # local.zenProfileDir. Пока профиля нет (значение null), файл не
+  # пишется вовсе: home-manager подставил бы его в несуществующий
+  # каталог и молча ничего не сделал.
   #
   # Первые две строки были в файле и раньше, правились руками; здесь
   # они сохранены как есть, иначе перезатёрлись бы.
   # =============================================================
-  home.file.".config/zen/vkvdhp86.Default Profile/user.js".text = ''
+  home.file = lib.mkIf (osConfig.local.zenProfileDir != null) {
+    ".config/zen/${osConfig.local.zenProfileDir}/user.js".text = ''
     user_pref("devtools.chrome.enabled", true);
     user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);
 
@@ -60,7 +70,8 @@
     // значит работает дефолт сборки, а жёсткая единица отобрала бы
     // восстановление прошлой сессии при запуске.
     user_pref("browser.startup.homepage", "https://server.taila27ec6.ts.net:8445");
-  '';
+    '';
+  };
 
   # Тема курсоров. До этого в системе не было НИ ОДНОЙ — niri ругался
   # "error loading xcursor crosshair: no default icon", из-за чего slurp

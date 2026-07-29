@@ -68,6 +68,12 @@ input {
     // focus-follows-mouse max-scroll-amount="0%"
 }
 
+// Мониторы — единственное в этом файле, что зависит от машины, поэтому
+// блоки output {} вынесены в отдельный файл. Он приезжает из
+// hosts/<машина>/outputs.kdl (см. home.nix, xdg.configFile). Заводской
+// пример ниже оставлен как справка и по-прежнему отключён через "/-".
+include "outputs.kdl"
+
 // You can configure outputs by their name, which you can find
 // by running `niri msg outputs` while inside a niri instance.
 // The built-in laptop monitor is usually called "eDP-1".
