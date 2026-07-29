@@ -45,8 +45,36 @@
   # Первые две строки были в файле и раньше, правились руками; здесь
   # они сохранены как есть, иначе перезатёрлись бы.
   # =============================================================
-  home.file = lib.mkIf (osConfig.local.zenProfileDir != null) {
-    ".config/zen/${osConfig.local.zenProfileDir}/user.js".text = ''
+  home.file = lib.mkMerge [
+    {
+      # =============================================================
+      # Плагин claude-companion — по пути, которого больше нет.
+      #
+      # Хуки Claude Code (~/.claude/settings.json, семь записей) зовут
+      # hooks/pulse.py по пути ВНУТРИ состояния noctalia:
+      #   ~/.local/state/noctalia/plugins/materialized/community/claude-companion
+      # Раньше туда клала копию витрина. Теперь плагины берутся из
+      # /nix/store (см. noctalia.nix, источники kind = "path"), и этот
+      # каталог не создаётся вовсе.
+      #
+      # Цена ошибки высокая и проверена на себе: PreToolUse-хук с
+      # несуществующим файлом блокирует КАЖДЫЙ вызов инструмента, то
+      # есть Claude Code перестаёт работать целиком, а не «орб не
+      # дышит». На чистой машине это случилось бы сразу.
+      #
+      # Поэтому путь закрепляем симлинком в store. Через home-manager,
+      # а не руками: симлинк пересоздаётся при каждом ребилде и потому
+      # переживает `nix flake update noctalia-community-plugins`, после
+      # которого путь в store меняется.
+      #
+      # Сам settings.json при этом не трогается.
+      # =============================================================
+      ".local/state/noctalia/plugins/materialized/community/claude-companion".source =
+        "${inputs.noctalia-community-plugins}/claude-companion";
+    }
+
+    (lib.mkIf (osConfig.local.zenProfileDir != null) {
+      ".config/zen/${osConfig.local.zenProfileDir}/user.js".text = ''
     user_pref("devtools.chrome.enabled", true);
     user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);
 
@@ -70,8 +98,9 @@
     // значит работает дефолт сборки, а жёсткая единица отобрала бы
     // восстановление прошлой сессии при запуске.
     user_pref("browser.startup.homepage", "https://server.taila27ec6.ts.net:8445");
-    '';
-  };
+      '';
+    })
+  ];
 
   # Тема курсоров. До этого в системе не было НИ ОДНОЙ — niri ругался
   # "error loading xcursor crosshair: no default icon", из-за чего slurp

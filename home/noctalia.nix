@@ -410,7 +410,11 @@ in
           };
         in
         {
-          enabled = true;
+          # ВЫКЛЮЧЕНО (перенесено из state, 2026-07-29): на экране блокировки
+          # своя раскладка виджетов не используется, работает заводская.
+          # Описание формы ввода ниже оставлено — включается сменой этой
+          # строки на true, и тогда она разложится по всем выходам машины.
+          enabled = false;
           schema_version = 2;
           widget_order = map (out: "lockscreen-login-box@${out}") outputs;
           grid = { visible = true; cell_size = 16; major_interval = 4; };
