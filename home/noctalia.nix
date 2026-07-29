@@ -46,12 +46,7 @@ in
 
       # ---- Оболочка ------------------------------------------------
       shell = {
-        # ВНИМАНИЕ: расходится с остальной системой, где основной
-        # моноширинный — LythMonoTerm (kitty, терминал, веб). Значение
-        # перенесено из state как есть: именно оно и работало, потому что
-        # state перекрывает этот конфиг. Похоже на остаток от времён до
-        # перехода на Lyth Mono — вернуть одной строкой, если так и есть.
-        font_family = "JetBrainsMono NF";
+        font_family = "LythMonoTerm Nerd Font";
         lang = "ru";
         app_icon_color = "primary";
         polkit_agent = true; # агент авторизации: без него sudo-диалоги GUI не всплывают
@@ -296,9 +291,7 @@ in
             rotation = 0.0;
             settings = {
               clock_style = "digital";
-              # Тот же разъезд с LythMonoTerm, что и в shell.font_family
-              # выше: значение перенесено из state, где оно и действовало.
-              font_family = "JetBrainsMono Nerd Font";
+              font_family = "LythMonoTerm Nerd Font";
               center_text = false;
               background = false;
               background_radius = 0;
