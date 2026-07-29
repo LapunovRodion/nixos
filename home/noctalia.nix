@@ -1,16 +1,19 @@
-{ config, osConfig, lib, inputs, ... }:
+{ osConfig, lib, inputs, ... }:
 
 let
   # Машинозависимое — из опций local.* (объявлены в modules/options.nix,
   # заданы в hosts/<машина>/default.nix). osConfig — конфиг системы.
-  inherit (osConfig.local) primaryOutput outputs hasBattery uiScale flakeAttr;
+  inherit (osConfig.local)
+    primaryOutput outputs hasBattery flakeAttr notificationScale osdScale;
   scr = osConfig.local.screen;
 
   # Координаты виджетов — в ЛОГИЧЕСКИХ пикселях, от центра виджета.
   # Те, что прижаты к левому верхнему углу, остаются числами: на любом
-  # экране они окажутся там же. А вот прижатые к центру и к низу обязаны
-  # считаться от размера экрана, иначе на другом мониторе уедут.
+  # экране они окажутся там же. А вот прижатые к центру, к низу и к
+  # правому краю обязаны считаться от размера экрана, иначе на другом
+  # мониторе уедут.
   centerX = scr.width * 1.0 / 2;
+  fromRight = margin: scr.width * 1.0 - margin;
   fromBottom = margin: scr.height * 1.0 - margin;
 in
 
@@ -43,7 +46,12 @@ in
 
       # ---- Оболочка ------------------------------------------------
       shell = {
-        font_family = "LythMonoTerm Nerd Font";
+        # ВНИМАНИЕ: расходится с остальной системой, где основной
+        # моноширинный — LythMonoTerm (kitty, терминал, веб). Значение
+        # перенесено из state как есть: именно оно и работало, потому что
+        # state перекрывает этот конфиг. Похоже на остаток от времён до
+        # перехода на Lyth Mono — вернуть одной строкой, если так и есть.
+        font_family = "JetBrainsMono NF";
         lang = "ru";
         app_icon_color = "primary";
         polkit_agent = true; # агент авторизации: без него sudo-диалоги GUI не всплывают
@@ -76,7 +84,7 @@ in
         mode = "dark";
         # Палитра генерируется ИЗ ОБОЕВ (Material You), а не берётся готовой.
         source = "wallpaper";
-        wallpaper_scheme = "m3-content";
+        wallpaper_scheme = "soft";
         # Запасные варианты — не действуют, пока source = "wallpaper",
         # но сохранены как выбор: на них переключаться сменой source.
         builtin = "Gruvbox";
@@ -118,18 +126,27 @@ in
       # ---- Обои ----------------------------------------------------
       wallpaper = {
         automation.enabled = true;
-        # Путь берём из САМОГО ПАКЕТА, а не хардкодом в /nix/store:
-        # иначе после обновления noctalia путь протухнет и обоев не будет.
-        default.path = "${config.programs.noctalia.package}/share/noctalia/assets/noctalia-wallpaper.png";
-        # wallpaper.last сознательно НЕ объявлен: это runtime-состояние,
-        # его пишет сама noctalia при каждой смене обоев.
+        # Папка, из которой шелл предлагает обои и крутит их автоматикой.
+        # Каталог НЕ в git: картинки лежат в ~/Pictures/wallpaper и едут
+        # на новую машину вместе с остальными данными. Если папки нет,
+        # останется только дефолт ниже.
+        directory = "/home/artur/Pictures/wallpaper";
+        # Обои по умолчанию. Раньше здесь был файл из пакета noctalia
+        # (чтобы путь не протух после обновления), но фактически стоял
+        # свой — значение перенесено из state. Из него же генерируется
+        # вся палитра (theme.source = "wallpaper"), так что от наличия
+        # этого файла зависят цвета всей системы.
+        default.path = "/home/artur/Pictures/wallpaper/wallhaven-jeyj5p.png";
+        # wallpaper.last и wallpaper.monitors.* сознательно НЕ объявлены:
+        # это runtime-состояние, его пишет сама noctalia при каждой смене
+        # обоев (в том числе при автоматической ротации).
       };
 
       # ---- Бар -----------------------------------------------------
       bar.default = {
         capsule = true;
         margin_ends = 0;
-        start = [ "group:g1" "wallpaper" "pulse" "nix-monitor" ];
+        start = [ "group:g1" "wallpaper" "pulse" "nix-monitor" "keyboard_layout" ];
         center = [ "workspaces" "cat" ];
         # battery — только там, где батарея есть: на десктопе виджет
         # показывал бы пустоту.
@@ -232,8 +249,8 @@ in
       # ---- Уведомления и OSD ---------------------------------------
       # Зависит от плотности экрана: на hidpi-панели ноута заводской
       # размер великоват (там 0.7), на обычном 1080p — в самый раз.
-      notification.scale = uiScale;
-      osd.scale = uiScale;
+      notification.scale = notificationScale;
+      osd.scale = osdScale;
 
       # ---- Бездействие ---------------------------------------------
       idle = {
@@ -262,6 +279,8 @@ in
           "desktop-widget-0000000000000003"
           "desktop-widget-0000000000000004"
           "desktop-widget-0000000000000005"
+          "desktop-widget-0000000000000006"
+          "desktop-widget-0000000000000007"
         ];
         grid = { visible = true; cell_size = 16; major_interval = 4; };
         widget = {
@@ -274,8 +293,11 @@ in
             rotation = 0.0;
             settings = {
               clock_style = "digital";
-              font_family = "LythMonoTerm Nerd Font";
+              # Тот же разъезд с LythMonoTerm, что и в shell.font_family
+              # выше: значение перенесено из state, где оно и действовало.
+              font_family = "JetBrainsMono Nerd Font";
               center_text = false;
+              background = false;
               background_radius = 0;
               shadow = true;
               timezone = "";
@@ -293,6 +315,7 @@ in
               gauge_layout = "horizontal";
               stat = "ram_pct";
               stat2 = "cpu_usage";
+              background = true;
               background_radius = 0;
             };
           };
@@ -312,7 +335,11 @@ in
             cx = 247.0; cy = 402.5;
             box_width = 384.0; box_height = 160.0;
             rotation = 0.0;
-            settings = { show_forecast = true; background_radius = 0; };
+            settings = {
+              show_forecast = true;
+              background = false;
+              background_radius = 0;
+            };
           };
           # орб claude-companion: дышит в такт сессии Claude Code
           desktop-widget-0000000000000005 = {
@@ -321,7 +348,40 @@ in
             cx = 343.0; cy = 258.5;
             box_width = 192.0; box_height = 128.0;
             rotation = 0.0;
-            settings.background_radius = 0;
+            settings = {
+              background = true;
+              background_radius = 0;
+            };
+          };
+          # Сеть двумя стрелками-циферблатами у правого края: приём и
+          # отдача разнесены по разным виджетам, потому что у sysmon на
+          # циферблате помещается одна величина плюс вторая мелким
+          # шрифтом (здесь — температура CPU под приёмом).
+          desktop-widget-0000000000000006 = {
+            type = "sysmon";
+            output = primaryOutput;
+            cx = fromRight 118.0; cy = 98.5;
+            box_width = 128.0; box_height = 64.0;
+            rotation = 0.0;
+            settings = {
+              display = "gauge";
+              stat = "net_rx";
+              stat2 = "cpu_temp";
+              background = false;
+            };
+          };
+          desktop-widget-0000000000000007 = {
+            type = "sysmon";
+            output = primaryOutput;
+            cx = fromRight 118.0; cy = 162.5;
+            box_width = 128.0; box_height = 64.0;
+            rotation = 0.0;
+            settings = {
+              display = "gauge";
+              stat = "net_tx";
+              stat2 = "";
+              background = false;
+            };
           };
         };
       };

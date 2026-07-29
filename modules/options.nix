@@ -55,13 +55,21 @@
       };
     };
 
-    uiScale = lib.mkOption {
+    # Масштабы разведены на две опции намеренно: на ноуте они разные
+    # (уведомления крупнее OSD), одним множителем это не описывается.
+    notificationScale = lib.mkOption {
       type = lib.types.float;
       default = 1.0;
       description = ''
-        Множитель размера уведомлений и OSD. На hidpi-панели заводской
-        размер великоват, на обычном 1080p — в самый раз.
+        Множитель размера уведомлений. На hidpi-панели заводской размер
+        великоват, на обычном 1080p — в самый раз.
       '';
+    };
+
+    osdScale = lib.mkOption {
+      type = lib.types.float;
+      default = 1.0;
+      description = "Множитель размера OSD (громкость, яркость).";
     };
 
     hasBattery = lib.mkOption {
