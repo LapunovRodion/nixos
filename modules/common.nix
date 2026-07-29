@@ -248,6 +248,13 @@ in
     extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
   };
 
+  # Обязателен вместе с xdg.portal: document-portal монтирует
+  # /run/user/1000/doc через FUSE и без setuid-обёртки fusermount3
+  # падает на каждом входе («fuse init failed»), из-за чего система
+  # всегда висит в состоянии degraded. Обёртки создаёт только этот
+  # модуль — самого пакета fuse3 в systemPackages недостаточно.
+  programs.fuse.enable = true;
+
   # ---------------------------------------------------------------
   # 2. noctalia v5 (шелл)
   # ---------------------------------------------------------------
