@@ -71,6 +71,25 @@
       # =============================================================
       ".local/state/noctalia/plugins/materialized/community/claude-companion".source =
         "${inputs.noctalia-community-plugins}/claude-companion";
+
+      # =============================================================
+      # Обои — в git, каталогом целиком.
+      #
+      # Раньше картинки лежали только в ~/Pictures/wallpaper и в
+      # репозиторий не входили: на новой машине конфиг приезжал, а обои
+      # нет, и шелл откатывался на дефолт из пакета noctalia.
+      #
+      # Путь назначения тот же, что и был, — /home/artur/Pictures/wallpaper,
+      # тот самый, что стоит в wallpaper.directory (см. noctalia.nix).
+      # Поэтому абсолютные пути в state (wallpaper.last, wallpaper.monitors.*)
+      # остаются валидными и текущие обои после ребилда не слетают.
+      #
+      # Плата за декларативность: каталог становится симлинком в
+      # /nix/store и доступен только на чтение. Скачать картинку прямо
+      # в него больше нельзя — новые обои кладутся в ~/nixos/wallpapers,
+      # коммитятся и приезжают ребилдом.
+      # =============================================================
+      "Pictures/wallpaper".source = ../wallpapers;
     }
 
     (lib.mkIf (osConfig.local.zenProfileDir != null) {
