@@ -24,9 +24,12 @@ let
   # Хосты. Имя root@nixos у ноутбучного ключа осталось от прежнего
   # networking.hostName — сам ключ при переименовании не меняется.
   laptop = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHMLtQmA3v+EQx/JWOW77g/C36B9vyEj4gSTQIaXQO2y root@nixos";
-  # desktop = "ssh-ed25519 AAAA... root@desktop";   # ВПИСАТЬ после установки
+  # У десктопа имя в комментарии тоже root@nixos, и по той же причине:
+  # ключ сгенерирован при первой загрузке, когда машина ещё называлась
+  # заводским "nixos", а networking.hostName = "desktop" приехал позже.
+  desktop = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPHiXnkJ52owpYEsNxknI9gFLKRQBMm3bv6FZWO0Yq7t root@nixos";
 
-  hosts = [ laptop ];   # + desktop, когда появится
+  hosts = [ laptop desktop ];
 in
 {
   # Конфиг hysteria-клиента: адрес сервера, пароль, obfs-ключ.
