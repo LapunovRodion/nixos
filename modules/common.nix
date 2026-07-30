@@ -411,6 +411,14 @@ in
     inputs.zen-browser.packages.${pkgs.system}.twilight
     # claude-desktop — обёрнут на VPN (claude-desktop-vpn в let выше), а не голый пакет
     claude-desktop-vpn
+
+    # ---- Офис ----
+    # OnlyOffice — редактор документов (docx/xlsx/pptx), бинарная сборка от
+    # вендора со своим Qt внутри (замыкание ~2.1 ГиБ, берётся из кеша).
+    # Единственный офисный пакет в системе, поэтому он же и хендлер
+    # office-форматов для xdg-open — mimeApps настраивать не требуется.
+    # Бинарь и .desktop называются onlyoffice-desktopeditors.
+    onlyoffice-desktopeditors
   ];
 
   # plocate — быстрый поиск по имени файла (updatedb по таймеру).
