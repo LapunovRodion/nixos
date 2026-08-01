@@ -434,6 +434,9 @@ in
     # office-форматов для xdg-open — mimeApps настраивать не требуется.
     # Бинарь и .desktop называются onlyoffice-desktopeditors.
     onlyoffice-desktopeditors
+
+    # ---- Продуктивность ----
+    super-productivity   # таск-менеджер / таймтрекер
   ];
 
   # plocate — быстрый поиск по имени файла (updatedb по таймеру).
