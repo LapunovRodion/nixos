@@ -232,7 +232,13 @@
   # модуль git включён (modules/programs/delta.nix, hasGitConfig).
   # Имя и почту НЕ задаю: глобального ~/.gitconfig у меня нет, личность
   # прописана по репозиториям, и так и остаётся.
+  # credential.helper — не идентичность, а способ авторизации: gh уже
+  # залогинен (gh auth login), пусть git берёт токен оттуда вместо
+  # запроса логина/пароля по https.
   programs.git.enable = true;
+  programs.git.extraConfig = {
+    credential.helper = "!gh auth git-credential";
+  };
   programs.delta = {
     enable = true;
     enableGitIntegration = true;
