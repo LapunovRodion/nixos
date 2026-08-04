@@ -516,6 +516,17 @@ in
       # переменная жёстко фиксирует ответ (hbb_common, get_display_server)
       # и передаётся дальше в процесс --server.
       RUSTDESK_FORCED_DISPLAY_SERVER = "wayland";
+
+      # Поток от портала RustDesk забирает конвейером GStreamer из трёх
+      # элементов: pipewiresrc → videoconvert → appsink (см. там же,
+      # pipewire.rs:270-287). Обёртка пакета из nixpkgs кладёт в
+      # GST_PLUGIN_SYSTEM_PATH_1_0 только gstreamer и gst-plugins-base, где
+      # есть videoconvert и appsink, а pipewiresrc лежит в самом pipewire —
+      # без него захват падает с «Failed to create element from factory name»,
+      # уже ПОСЛЕ успешного диалога портала. Обёртка добавляет свои пути через
+      # --prefix, так что значение отсюда не затирается, а дополняется.
+      GST_PLUGIN_SYSTEM_PATH_1_0 =
+        "${config.services.pipewire.package}/lib/gstreamer-1.0";
     };
     serviceConfig = {
       ExecStart = "${pkgs.rustdesk}/bin/rustdesk --service";
