@@ -414,19 +414,6 @@ in
     # Фоновая синхронизация папок и так на syncthing (см. ниже).
     localsend
 
-    # ---- Удалённый доступ ----
-    # RustDesk, привязанный к СВОЕМУ серверу: hbbs+hbbr крутятся на домашнем
-    # сервере (/opt/rustdesk) и слушают только на Tailscale-IP, публичные
-    # relay-серверы rustdesk.com не используются вовсе. Адреса и ключ сервера
-    # клиенту проставляет активация home-manager — см. home/home.nix,
-    # блок «RustDesk», и home/rustdesk-config.py.
-    #
-    # Демонстрация экрана работает через ScreenCast-портал (xdg-desktop-portal-gnome
-    # тянет сам niri) поверх pipewire — отдельно ничего включать не нужно.
-    # Автозапуска сознательно нет: подключиться к этой машине можно, только
-    # когда RustDesk на ней запущен руками.
-    rustdesk
-
     # ---- Batch 3b: браузер + claude-desktop (из сторонних flake) ----
     # Zen — ветка Twilight (ночные сборки) вместо стабильной (ревизия 2026-07-28).
     # twilight, а не twilight-official: первый берёт зеркало, которое сам flake
@@ -475,88 +462,6 @@ in
   # Сам по себе он ничего не монтирует автоматически — монтирование руками
   # из yazi (плагин mount, см. home.nix, клавиша M).
   services.udisks2.enable = true;
-
-  # ---------------------------------------------------------------
-  # RustDesk — демон входящих подключений (только там, где включён)
-  # ---------------------------------------------------------------
-  # Без него подключиться К машине под niri нельзя в принципе. Логика самого
-  # RustDesk (libs/scrap/src/wayland/pipewire.rs, функция is_server_running):
-  #   есть процесс `rustdesk --server` → картинку берём порталом ScreenCast,
-  #                                      ввод отдаём uinput;
-  #   нет процесса                     → лезем в портал RemoteDesktop.
-  # А RemoteDesktop под niri не существует: xdg-desktop-portal-gnome отдаёт
-  # его только поверх org.gnome.Mutter.RemoteDesktop, которого niri не
-  # публикует (в busctl видно лишь org.gnome.Mutter.ScreenCast). Портал
-  # отвечает «No such interface», а клиент показывает при этом сообщение
-  # «Wayland requires higher version of linux distro» — оно врёт, версия
-  # дистрибутива тут ни при чём.
-  #
-  # `--service` работает от root и сам порождает `--server` в сессии
-  # пользователя — через `sudo -E -u artur`, а сессию ищет пачкой шелл-команд
-  # вида `ps -u 1000 -f | grep … | awk '{print $2}' | xargs cat /proc/__/environ`.
-  # У системного юнита PATH пустой, поэтому список ниже — не украшение:
-  # без sudo `--server` не запускается вовсе, без gawk/getent не находится
-  # сессия. Проверено на живой машине: с урезанным PATH демон висел, жёг
-  # ядро в холостом цикле и ошибка на клиенте не менялась.
-  # sudo берётся из /run/wrappers/bin — в /nix/store его нет, это сетуид-обёртка.
-  systemd.services.rustdesk = lib.mkIf config.local.rustdeskService {
-    description = "RustDesk: приём входящих подключений";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "network.target" ];
-    # ВНИМАНИЕ: строкам в path систем­ный модуль сам дописывает /bin,
-    # поэтому здесь «/run/wrappers», а не «/run/wrappers/bin».
-    path = [ "/run/wrappers" ] ++ (with pkgs; [
-      coreutils procps gawk getent which bash systemd
-    ]);
-    environment = {
-      # Определение типа сессии у RustDesk хрупкое: рядом с niri живёт
-      # xwayland-satellite, из-за него `pgrep -a Xwayland` срабатывает и
-      # RustDesk уходит в ветку «Wayland + XWayland», где ждёт XAUTHORITY.
-      # Файла xauth у xwayland-satellite нет вовсе, ждать нечего. Эта
-      # переменная жёстко фиксирует ответ (hbb_common, get_display_server)
-      # и передаётся дальше в процесс --server.
-      RUSTDESK_FORCED_DISPLAY_SERVER = "wayland";
-
-      # Поток от портала RustDesk забирает конвейером GStreamer из трёх
-      # элементов: pipewiresrc → videoconvert → appsink (см. там же,
-      # pipewire.rs:270-287). Обёртка пакета из nixpkgs кладёт в
-      # GST_PLUGIN_SYSTEM_PATH_1_0 только gstreamer и gst-plugins-base, где
-      # есть videoconvert и appsink, а pipewiresrc лежит в самом pipewire —
-      # без него захват падает с «Failed to create element from factory name»,
-      # уже ПОСЛЕ успешного диалога портала. Обёртка добавляет свои пути через
-      # --prefix, так что значение отсюда не затирается, а дополняется.
-      # Путь перечислен целиком, а не только pipewire: значение из обёртки
-      # пакета до процесса `--server` не всегда доезжает (его порождает sudo,
-      # и именно эта переменная у него пропадает, тогда как соседние — нет).
-      GST_PLUGIN_SYSTEM_PATH_1_0 = lib.concatStringsSep ":" [
-        # .out обязателен: дефолтный выход у gstreamer — bin, плагинов там нет
-        "${pkgs.gst_all_1.gstreamer.out}/lib/gstreamer-1.0"
-        "${pkgs.gst_all_1.gst-plugins-base}/lib/gstreamer-1.0"
-        "${config.services.pipewire.package}/lib/gstreamer-1.0"
-      ];
-
-      # ВРЕМЕННО, диагностика 2026-08-04. Портал теперь отвечает успешно
-      # (session_handle + поток 1920x1080 + restore_token), но конвейер не
-      # переходит в PLAYING: «Failed scrap Element failed to change its state».
-      # Похоже на согласование формата между порталом и appsink (ср. issue
-      # rustdesk#14896 про COSMIC, там фикс уже в 1.4.9 — значит у нас другой
-      # формат). Без подробного лога GStreamer причину не назвать.
-      # Логи уходят в stderr, то есть в journalctl -u rustdesk.
-      # УБРАТЬ, когда захват заработает.
-      GST_DEBUG = "pipewiresrc:5,GST_STATES:4,videoconvert:4,3";
-      GST_DEBUG_NO_COLOR = "1";
-    };
-    serviceConfig = {
-      ExecStart = "${pkgs.rustdesk}/bin/rustdesk --service";
-      Restart = "on-failure";
-      RestartSec = 5;
-    };
-  };
-
-  # Тот самый способ ввода, ради которого нужен демон: клавиатура и мышь
-  # удалённой стороны приезжают через /dev/uinput. Опция грузит модуль ядра
-  # и заводит устройство — root открыл бы его и так, но открывать нечего.
-  hardware.uinput.enable = config.local.rustdeskService;
 
   # ---------------------------------------------------------------
   # 5. Syncthing — синхронизация хранилища Obsidian

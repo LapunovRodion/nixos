@@ -89,17 +89,6 @@
       '';
     };
 
-    rustdeskService = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = ''
-        Запускать ли демон RustDesk (`rustdesk --service`), то есть можно ли
-        подключаться К этой машине. Сам клиент ставится на обе машины всегда —
-        опция только про входящие подключения. Почему без демона под niri
-        входящие не работают вовсе — разобрано в modules/common.nix.
-      '';
-    };
-
     niriOutputs = lib.mkOption {
       type = lib.types.path;
       description = ''
