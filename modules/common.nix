@@ -477,6 +477,41 @@ in
   services.udisks2.enable = true;
 
   # ---------------------------------------------------------------
+  # RustDesk — демон входящих подключений (только там, где включён)
+  # ---------------------------------------------------------------
+  # Без него подключиться К машине под niri нельзя в принципе. Логика самого
+  # RustDesk (libs/scrap/src/wayland/pipewire.rs, функция is_server_running):
+  #   есть процесс `rustdesk --server` → картинку берём порталом ScreenCast,
+  #                                      ввод отдаём uinput;
+  #   нет процесса                     → лезем в портал RemoteDesktop.
+  # А RemoteDesktop под niri не существует: xdg-desktop-portal-gnome отдаёт
+  # его только поверх org.gnome.Mutter.RemoteDesktop, которого niri не
+  # публикует (в busctl видно лишь org.gnome.Mutter.ScreenCast). Портал
+  # отвечает «No such interface», а клиент показывает при этом сообщение
+  # «Wayland requires higher version of linux distro» — оно врёт, версия
+  # дистрибутива тут ни при чём.
+  #
+  # `--service` работает от root и сам порождает `--server` в сессии
+  # пользователя. PATH прописан явно: RustDesk зовёт ps/pgrep/w/getent
+  # обычными именами, а у системного юнита PATH пустой.
+  systemd.services.rustdesk = lib.mkIf config.local.rustdeskService {
+    description = "RustDesk: приём входящих подключений";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network.target" ];
+    path = with pkgs; [ coreutils procps which bash systemd glibc.bin ];
+    serviceConfig = {
+      ExecStart = "${pkgs.rustdesk}/bin/rustdesk --service";
+      Restart = "on-failure";
+      RestartSec = 5;
+    };
+  };
+
+  # Тот самый способ ввода, ради которого нужен демон: клавиатура и мышь
+  # удалённой стороны приезжают через /dev/uinput. Опция грузит модуль ядра
+  # и заводит устройство — root открыл бы его и так, но открывать нечего.
+  hardware.uinput.enable = config.local.rustdeskService;
+
+  # ---------------------------------------------------------------
   # 5. Syncthing — синхронизация хранилища Obsidian
   # ---------------------------------------------------------------
   # Работает от пользователя artur, иначе права на ~/Obsidian будут root'овые.
