@@ -503,7 +503,9 @@ in
     description = "RustDesk: приём входящих подключений";
     wantedBy = [ "multi-user.target" ];
     after = [ "network.target" ];
-    path = [ "/run/wrappers/bin" ] ++ (with pkgs; [
+    # ВНИМАНИЕ: строкам в path систем­ный модуль сам дописывает /bin,
+    # поэтому здесь «/run/wrappers», а не «/run/wrappers/bin».
+    path = [ "/run/wrappers" ] ++ (with pkgs; [
       coreutils procps gawk getent which bash systemd
     ]);
     environment = {
