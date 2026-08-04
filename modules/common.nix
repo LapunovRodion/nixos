@@ -525,8 +525,26 @@ in
       # без него захват падает с «Failed to create element from factory name»,
       # уже ПОСЛЕ успешного диалога портала. Обёртка добавляет свои пути через
       # --prefix, так что значение отсюда не затирается, а дополняется.
-      GST_PLUGIN_SYSTEM_PATH_1_0 =
-        "${config.services.pipewire.package}/lib/gstreamer-1.0";
+      # Путь перечислен целиком, а не только pipewire: значение из обёртки
+      # пакета до процесса `--server` не всегда доезжает (его порождает sudo,
+      # и именно эта переменная у него пропадает, тогда как соседние — нет).
+      GST_PLUGIN_SYSTEM_PATH_1_0 = lib.concatStringsSep ":" [
+        # .out обязателен: дефолтный выход у gstreamer — bin, плагинов там нет
+        "${pkgs.gst_all_1.gstreamer.out}/lib/gstreamer-1.0"
+        "${pkgs.gst_all_1.gst-plugins-base}/lib/gstreamer-1.0"
+        "${config.services.pipewire.package}/lib/gstreamer-1.0"
+      ];
+
+      # ВРЕМЕННО, диагностика 2026-08-04. Портал теперь отвечает успешно
+      # (session_handle + поток 1920x1080 + restore_token), но конвейер не
+      # переходит в PLAYING: «Failed scrap Element failed to change its state».
+      # Похоже на согласование формата между порталом и appsink (ср. issue
+      # rustdesk#14896 про COSMIC, там фикс уже в 1.4.9 — значит у нас другой
+      # формат). Без подробного лога GStreamer причину не назвать.
+      # Логи уходят в stderr, то есть в journalctl -u rustdesk.
+      # УБРАТЬ, когда захват заработает.
+      GST_DEBUG = "pipewiresrc:5,GST_STATES:4,videoconvert:4,3";
+      GST_DEBUG_NO_COLOR = "1";
     };
     serviceConfig = {
       ExecStart = "${pkgs.rustdesk}/bin/rustdesk --service";
