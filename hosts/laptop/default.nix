@@ -7,7 +7,10 @@
 # =============================================================
 
 {
-  imports = [ ./hardware-configuration.nix ];
+  # dev.nix подключён только здесь: контейнеры и виртуализация нужны на
+  # рабочей машине, на desktop им делать нечего. Выключается флагами
+  # local.dev.* ниже.
+  imports = [ ./hardware-configuration.nix ../../modules/dev.nix ];
 
   networking.hostName = "laptop";
 
@@ -60,5 +63,12 @@
     hasBattery = true;
     zenProfileDir = "vkvdhp86.Default Profile";
     niriOutputs = ./outputs.kdl;
+
+    # Окружение разработки (см. modules/dev.nix). Выставить в false и
+    # сделать switch — podman и libvirt уйдут из системы.
+    dev = {
+      containers.enable = true;   # Oracle XE для плагина AutoCAD
+      vm.enable = true;           # гостевая Windows с самим AutoCAD
+    };
   };
 }
