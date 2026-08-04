@@ -492,13 +492,29 @@ in
   # дистрибутива тут ни при чём.
   #
   # `--service` работает от root и сам порождает `--server` в сессии
-  # пользователя. PATH прописан явно: RustDesk зовёт ps/pgrep/w/getent
-  # обычными именами, а у системного юнита PATH пустой.
+  # пользователя — через `sudo -E -u artur`, а сессию ищет пачкой шелл-команд
+  # вида `ps -u 1000 -f | grep … | awk '{print $2}' | xargs cat /proc/__/environ`.
+  # У системного юнита PATH пустой, поэтому список ниже — не украшение:
+  # без sudo `--server` не запускается вовсе, без gawk/getent не находится
+  # сессия. Проверено на живой машине: с урезанным PATH демон висел, жёг
+  # ядро в холостом цикле и ошибка на клиенте не менялась.
+  # sudo берётся из /run/wrappers/bin — в /nix/store его нет, это сетуид-обёртка.
   systemd.services.rustdesk = lib.mkIf config.local.rustdeskService {
     description = "RustDesk: приём входящих подключений";
     wantedBy = [ "multi-user.target" ];
     after = [ "network.target" ];
-    path = with pkgs; [ coreutils procps which bash systemd glibc.bin ];
+    path = [ "/run/wrappers/bin" ] ++ (with pkgs; [
+      coreutils procps gawk getent which bash systemd
+    ]);
+    environment = {
+      # Определение типа сессии у RustDesk хрупкое: рядом с niri живёт
+      # xwayland-satellite, из-за него `pgrep -a Xwayland` срабатывает и
+      # RustDesk уходит в ветку «Wayland + XWayland», где ждёт XAUTHORITY.
+      # Файла xauth у xwayland-satellite нет вовсе, ждать нечего. Эта
+      # переменная жёстко фиксирует ответ (hbb_common, get_display_server)
+      # и передаётся дальше в процесс --server.
+      RUSTDESK_FORCED_DISPLAY_SERVER = "wayland";
+    };
     serviceConfig = {
       ExecStart = "${pkgs.rustdesk}/bin/rustdesk --service";
       Restart = "on-failure";
