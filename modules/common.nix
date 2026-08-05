@@ -435,6 +435,10 @@ in
     # Бинарь и .desktop называются onlyoffice-desktopeditors.
     onlyoffice-desktopeditors
 
+    # ---- Почта ----
+    thunderbird
+    tutanota-desktop
+
     # ---- Продуктивность ----
     super-productivity   # таск-менеджер / таймтрекер
   ];
