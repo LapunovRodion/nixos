@@ -46,9 +46,26 @@
     };
 
     # Официальные плагины yazi. Это обычный репозиторий-монорепо, не flake
-    # (отсюда flake = false) — из него берётся подкаталог mount.yazi.
+    # (отсюда flake = false) — из него берутся подкаталоги *.yazi, см. home.nix.
     yazi-plugins = {
       url = "github:yazi-rs/plugins";
+      flake = false;
+    };
+
+    # Сторонние плагины yazi — каждый отдельным репозиторием, main.lua в корне,
+    # поэтому в plugins подставляется сам input, без подкаталога.
+    #
+    # ouch — превью содержимого архивов и упаковка. Требует бинарь ouch в PATH
+    # (добавлен в systemPackages).
+    ouch-yazi = {
+      url = "github:ndtoan96/ouch.yazi";
+      flake = false;
+    };
+
+    # starship — то же приглашение, что и в fish, в шапке yazi.
+    # Берёт уже существующий ~/.config/starship.toml, отдельной настройки нет.
+    starship-yazi = {
+      url = "github:Rolv-Apneseth/starship.yazi";
       flake = false;
     };
 

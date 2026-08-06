@@ -115,6 +115,18 @@ in
             input_path = "${./niri/theme.kdl.in}";
             output_path = "~/.config/niri/noctalia-theme.kdl";
           };
+
+          # Тема Claude Code. Формат — свой, кастомные темы он читает из
+          # ~/.claude/themes/*.json, имя файла становится slug'ом. Каталог
+          # noctalia создаст сама, а post_hook не нужен: Claude Code держит
+          # каталог тем под watcher'ом и перекрашивает даже открытую сессию.
+          # Включается разово: "theme": "custom:noctalia" в
+          # ~/.claude/settings.json (или /theme). Сам settings.json вне git —
+          # Claude Code пишет в него сам, как noctalia в свой state.
+          user.claude = {
+            input_path = "${./claude/theme.json.in}";
+            output_path = "~/.claude/themes/noctalia.json";
+          };
         };
       };
 

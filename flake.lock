@@ -380,6 +380,22 @@
         "type": "github"
       }
     },
+    "ouch-yazi": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1772505001,
+        "narHash": "sha256-14x/bD0aD9hXONaqQD8Dt7rLBCMq7bkVLH6uCPOQ0C8=",
+        "owner": "ndtoan96",
+        "repo": "ouch.yazi",
+        "rev": "406ce6c13ec3a18d4872b8f64b62f4a530759b2c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ndtoan96",
+        "repo": "ouch.yazi",
+        "type": "github"
+      }
+    },
     "pyproject-build-systems": {
       "inputs": {
         "nixpkgs": [
@@ -442,9 +458,27 @@
         "noctalia": "noctalia",
         "noctalia-community-plugins": "noctalia-community-plugins",
         "noctalia-official-plugins": "noctalia-official-plugins",
+        "ouch-yazi": "ouch-yazi",
+        "starship-yazi": "starship-yazi",
         "torlink": "torlink",
         "yazi-plugins": "yazi-plugins",
         "zen-browser": "zen-browser"
+      }
+    },
+    "starship-yazi": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1781463098,
+        "narHash": "sha256-I21to4cxlszRpsb58cvsmwX7VglQBSJC0rrsFIltzC8=",
+        "owner": "Rolv-Apneseth",
+        "repo": "starship.yazi",
+        "rev": "159eaba5b5052bf78ff6cfbfe4e527b946818c82",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Rolv-Apneseth",
+        "repo": "starship.yazi",
+        "type": "github"
       }
     },
     "systems": {

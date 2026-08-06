@@ -1,0 +1,171 @@
+<* ============================================================
+   Тема Claude Code — ВХОД для генератора палитры noctalia.
+
+   Это не рабочий конфиг: {{...}} подставляет noctalia при каждой
+   смене палитры (у меня source = "wallpaper", то есть при каждой
+   смене обоев). Результат ложится в ~/.claude/themes/noctalia.json,
+   а Claude Code держит этот каталог под watcher'ом и перекрашивает
+   ДАЖЕ УЖЕ ОТКРЫТУЮ сессию. post_hook поэтому не нужен.
+
+   Объявление шаблона — в ~/nixos/home/noctalia.nix,
+   [theme.templates.user.claude]. Включается тема разово, ключом
+   "theme": "custom:noctalia" в ~/.claude/settings.json (или через
+   /theme — она там в общем списке). Сам settings.json намеренно
+   вне git: Claude Code пишет в него сам, как noctalia в свой state.
+
+   ПРАВИЛА ФОРМАТА (вытащены из бинаря claude, не из документации):
+     * цвет — строго #rrggbb / #rgb / rgb(r,g,b) / ansi256(n) / ansi:имя.
+       Восьмизначный hex с альфой НЕ принимается, поэтому фильтр
+       set_alpha здесь применять нельзя;
+     * неизвестный ключ и невалидное значение выбрасываются МОЛЧА —
+       опечатка ничем себя не проявит, сверяться со списком ключей
+       базовой тёмной темы (как его достать — в конце файла);
+     * base обязан совпадать с theme.mode из noctalia.nix. Сейчас
+       там "dark"; переключишь режим — поправь и здесь.
+
+   ПОЧЕМУ ЦВЕТА СЧИТАЮТСЯ ЧЕРЕЗ set_hue, А НЕ БЕРУТСЯ ИЗ
+   terminal_normal_*: при wallpaper_scheme = "soft" ANSI-цвета
+   noctalia сдвинуты к обоям целиком, и «зелёный» на тёплых обоях
+   выходит лососевым (проверено: terminal_normal_green = #ce8e7d
+   при primary = #ce8e7d, terminal_normal_blue — оливковый).
+   Диффы и статусы на таких цветах перестали бы читаться. Поэтому
+   семантика строится так: берём primary — в нём насыщенность и
+   светлота, характерные для текущих обоев, — и ставим нужный тон
+   градусами. Цвет остаётся «из палитры», но зелёный остаётся зелёным.
+
+   Аргументы фильтров — В ПРОЦЕНТАХ (0..100), не в долях. В чужих
+   community-шаблонах попадается «lighten 0.1» — это молчаливый
+   no-op, повторять не надо.
+   ============================================================ *>
+{
+  "name": "Noctalia",
+  "base": "dark",
+  "overrides": {
+
+    <* ---- Акценты. Фирменный оранжевый Claude не сохраняем:
+       всё уходит в палитру обоев. ---- *>
+    "claude":                              "{{colors.primary.default.hex}}",
+    "claudeShimmer":                       "{{colors.primary.default.hex | lighten 12}}",
+    "briefLabelClaude":                    "{{colors.primary.default.hex}}",
+    "clawd_body":                          "{{colors.primary.default.hex}}",
+    "clawd_background":                    "{{colors.surface.default.hex}}",
+
+    "claudeBlue_FOR_SYSTEM_SPINNER":       "{{colors.tertiary.default.hex}}",
+    "claudeBlueShimmer_FOR_SYSTEM_SPINNER": "{{colors.tertiary.default.hex | lighten 12}}",
+
+    "autoAccept":                          "{{colors.tertiary.default.hex}}",
+    "autoAcceptShimmer":                   "{{colors.tertiary.default.hex | lighten 12}}",
+    "skill":                               "{{colors.tertiary.default.hex}}",
+    "merged":                              "{{colors.tertiary.default.hex}}",
+    "effortUltra":                         "{{colors.tertiary.default.hex}}",
+
+    "permission":                          "{{colors.tertiary.default.hex}}",
+    "permissionShimmer":                   "{{colors.tertiary.default.hex | lighten 12}}",
+    "suggestion":                          "{{colors.tertiary.default.hex}}",
+    "remember":                            "{{colors.tertiary.default.hex}}",
+
+    <* bashBorder — рамка вокруг вывода Bash, planMode — рамка и метка
+       режима планирования, ide — метка подключённой IDE. ---- *>
+    "bashBorder":                          "{{colors.secondary.default.hex}}",
+    "planMode":                            "{{colors.secondary.default.hex}}",
+    "ide":                                 "{{colors.secondary.default.hex}}",
+    "briefLabelYou":                       "{{colors.secondary.default.hex}}",
+
+    "rate_limit_fill":                     "{{colors.primary.default.hex}}",
+    "rate_limit_empty":                    "{{colors.surface_variant.default.hex}}",
+
+    <* ---- Текст и обвязка ---- *>
+    "text":                                "{{colors.on_surface.default.hex}}",
+    "inverseText":                         "{{colors.surface.default.hex}}",
+    "inactive":                            "{{colors.outline.default.hex}}",
+    "inactiveShimmer":                     "{{colors.outline.default.hex | lighten 12}}",
+    <* outline и outline_variant у Material You почти совпадают (в иных
+       палитрах — до символа), а subtle обязан быть заметно тусклее
+       inactive, иначе неактивный текст и подсказки сливаются. Отсюда
+       darken. *>
+    "subtle":                              "{{colors.outline_variant.default.hex | darken 12}}",
+    "promptBorder":                        "{{colors.outline.default.hex}}",
+    "promptBorderShimmer":                 "{{colors.outline.default.hex | lighten 12}}",
+    "background":                          "{{colors.surface.default.hex}}",
+
+    <* ---- Статусы. error берётся ролью палитры — тем же красным,
+       что и во всём остальном десктопе; зелёный и жёлтый роли не
+       имеют и считаются тоном от primary. ---- *>
+    "success":                             "{{colors.primary.default.hex | set_hue 140}}",
+    "error":                               "{{colors.error.default.hex}}",
+    "warning":                             "{{colors.primary.default.hex | set_hue 45}}",
+    "warningShimmer":                      "{{colors.primary.default.hex | set_hue 45 | lighten 12}}",
+    "fastMode":                            "{{colors.primary.default.hex | set_hue 28}}",
+    "fastModeShimmer":                     "{{colors.primary.default.hex | set_hue 28 | lighten 12}}",
+    "professionalBlue":                    "{{colors.primary.default.hex | set_hue 215}}",
+    "chromeYellow":                        "{{colors.primary.default.hex | set_hue 48}}",
+
+    <* ---- Диффы в Edit. diffAdded/diffRemoved — ФОН целой строки;
+       *Word — подсветка изменившегося куска внутри строки, светлее;
+       *Dimmed — те же фоны для соседнего, неактивного блока.
+
+       Единственное место, где насыщенность и светлота заданы ЖЁСТКО,
+       а не взяты у палитры (set_saturation/set_lightness вместо
+       darken). Причина: под фон текста годится узкая полоса цветов,
+       а палитра гуляет широко — на «dysfunctional» primary выходит
+       почти неоновым, и добавленная строка светилась ядовито-зелёным,
+       на монохромных обоях — наоборот, сливалась с surface. Числа
+       здесь — HSL заводской тёмной темы Claude Code, они проверены
+       на читаемость. От палитры остаётся тон: зелёный и красный
+       обязаны читаться как зелёный и красный при любых обоях. ---- *>
+    "diffAdded":                           "{{colors.primary.default.hex | set_hue 140 | set_saturation 46 | set_lightness 25}}",
+    "diffRemoved":                         "{{colors.primary.default.hex | set_hue 350 | set_saturation 50 | set_lightness 32}}",
+    "diffAddedWord":                       "{{colors.primary.default.hex | set_hue 143 | set_saturation 50 | set_lightness 44}}",
+    "diffRemovedWord":                     "{{colors.primary.default.hex | set_hue 350 | set_saturation 36 | set_lightness 52}}",
+    "diffAddedDimmed":                     "{{colors.primary.default.hex | set_hue 140 | set_saturation 11 | set_lightness 31}}",
+    "diffRemovedDimmed":                   "{{colors.primary.default.hex | set_hue 350 | set_saturation 18 | set_lightness 35}}",
+
+    <* ---- Фоны блоков ---- *>
+    "userMessageBackground":               "{{colors.surface_container_high.default.hex}}",
+    "userMessageBackgroundHover":          "{{colors.surface_container_highest.default.hex}}",
+    "composerSidebarBackground":           "{{colors.surface_container_low.default.hex}}",
+    "bashMessageBackgroundColor":          "{{colors.surface_container.default.hex}}",
+    "memoryBackgroundColor":               "{{colors.surface_container.default.hex}}",
+    "selectionBg":                         "{{colors.terminal_selection_bg.default.hex}}",
+
+    <* ---- Метки субагентов: восемь цветов, которые должны
+       отличаться друг от друга. Разводим по тону от primary. ---- *>
+    "red_FOR_SUBAGENTS_ONLY":              "{{colors.primary.default.hex | set_hue 5}}",
+    "orange_FOR_SUBAGENTS_ONLY":           "{{colors.primary.default.hex | set_hue 28}}",
+    "yellow_FOR_SUBAGENTS_ONLY":           "{{colors.primary.default.hex | set_hue 48}}",
+    "green_FOR_SUBAGENTS_ONLY":            "{{colors.primary.default.hex | set_hue 140}}",
+    "cyan_FOR_SUBAGENTS_ONLY":             "{{colors.primary.default.hex | set_hue 185}}",
+    "blue_FOR_SUBAGENTS_ONLY":             "{{colors.primary.default.hex | set_hue 215}}",
+    "purple_FOR_SUBAGENTS_ONLY":           "{{colors.primary.default.hex | set_hue 275}}",
+    "pink_FOR_SUBAGENTS_ONLY":             "{{colors.primary.default.hex | set_hue 335}}",
+
+    <* ---- Радуга (переливы в приветствии и прогрессе) ---- *>
+    "rainbow_red":                         "{{colors.primary.default.hex | set_hue 5}}",
+    "rainbow_orange":                      "{{colors.primary.default.hex | set_hue 28}}",
+    "rainbow_yellow":                      "{{colors.primary.default.hex | set_hue 48}}",
+    "rainbow_green":                       "{{colors.primary.default.hex | set_hue 140}}",
+    "rainbow_blue":                        "{{colors.primary.default.hex | set_hue 215}}",
+    "rainbow_indigo":                      "{{colors.primary.default.hex | set_hue 258}}",
+    "rainbow_violet":                      "{{colors.primary.default.hex | set_hue 292}}",
+    "rainbow_red_shimmer":                 "{{colors.primary.default.hex | set_hue 5 | lighten 15}}",
+    "rainbow_orange_shimmer":              "{{colors.primary.default.hex | set_hue 28 | lighten 15}}",
+    "rainbow_yellow_shimmer":              "{{colors.primary.default.hex | set_hue 48 | lighten 15}}",
+    "rainbow_green_shimmer":               "{{colors.primary.default.hex | set_hue 140 | lighten 15}}",
+    "rainbow_blue_shimmer":                "{{colors.primary.default.hex | set_hue 215 | lighten 15}}",
+    "rainbow_indigo_shimmer":              "{{colors.primary.default.hex | set_hue 258 | lighten 15}}",
+    "rainbow_violet_shimmer":              "{{colors.primary.default.hex | set_hue 292 | lighten 15}}"
+  }
+}
+<* Полный список ключей базовой темы (их 72, здесь покрыты все) достаётся
+   из бинаря. Имена переменных в сборке минифицированы и меняются от версии
+   к версии, поэтому цепляемся за первый ключ объекта. Набор ключей у всех
+   базовых тем (dark / light / *-daltonized / *-ansi) один и тот же, так что
+   какой объект попадётся первым — неважно:
+
+     bin=$(readlink -f "$(command -v claude)")               # обёртка -vpn
+     bin=$(readlink -f "$(dirname "$bin")/.claude-wrapped_") # сам claude-code
+     grep -a -o -E 'autoAccept:"rgb\(.{0,4000}' "$(dirname "$bin")/.claude-wrapped" \
+       | head -1 | grep -o -E '[A-Za-z_][A-Za-z0-9_]*:"rgb\(' | sort -u
+
+   После обновления claude-code стоит перепроверить: ключи могли уехать,
+   а лишние здесь отвалятся без единого сообщения. *>

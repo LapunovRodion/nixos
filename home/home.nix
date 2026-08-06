@@ -175,17 +175,140 @@
     enable = true;
     enableFishIntegration = true;
 
-    # mount.yazi — список дисков прямо в yazi: клавиша M открывает панель,
-    # там смонтировать/отмонтировать флешку. Ходит через udisksctl, поэтому
-    # sudo не спрашивает (нужен services.udisks2 — включён в configuration.nix).
-    # Точка монтирования получается вида /run/media/artur/<метка тома>.
-    plugins.mount = "${inputs.yazi-plugins}/mount.yazi";
+    # Плагины кладутся как есть (setup = false у всех): вызовы require(...)
+    # собраны руками в initLua ниже, чтобы настройка была в одном месте,
+    # а не размазана между атрибутами и лишним файлом.
+    plugins = {
+      # mount — список дисков прямо в yazi: клавиша M открывает панель,
+      # там смонтировать/отмонтировать флешку. Ходит через udisksctl, поэтому
+      # sudo не спрашивает (нужен services.udisks2 — включён в configuration.nix).
+      # Точка монтирования получается вида /run/media/artur/<метка тома>.
+      mount = "${inputs.yazi-plugins}/mount.yazi";
+
+      # --- внешний вид ---
+      full-border = "${inputs.yazi-plugins}/full-border.yazi";  # рамка вокруг панелей
+      git = "${inputs.yazi-plugins}/git.yazi";                  # git-статус колонкой в листинге
+
+      # --- поведение ---
+      smart-enter = "${inputs.yazi-plugins}/smart-enter.yazi";  # l: войти в каталог ИЛИ открыть файл
+      smart-filter = "${inputs.yazi-plugins}/smart-filter.yazi"; # фильтр, не выходя из режима ввода
+      smart-paste = "${inputs.yazi-plugins}/smart-paste.yazi";  # вставка в каталог под курсором
+      jump-to-char = "${inputs.yazi-plugins}/jump-to-char.yazi"; # f<символ>, как в vim
+      chmod = "${inputs.yazi-plugins}/chmod.yazi";
+      diff = "${inputs.yazi-plugins}/diff.yazi";
+      toggle-pane = "${inputs.yazi-plugins}/toggle-pane.yazi";
+      zoom = "${inputs.yazi-plugins}/zoom.yazi";
+
+      # --- сторонние, каждый своим input (см. flake.nix) ---
+      ouch = inputs.ouch-yazi;
+      starship = inputs.starship-yazi;
+    };
+
+    # Тема НЕ трогается: flavor "noctalia" генерит сам noctalia в
+    # ~/.config/yazi/flavors/, а theme.toml он же правит своим apply.sh.
+    # Отдать theme.toml под home-manager нельзя — HM делает симлинк
+    # read-only, и post_hook шаблона на нём падает.
+    initLua = ''
+      -- Рамка вокруг всех панелей. ROUNDED, чтобы совпадать со скруглениями
+      -- бара noctalia и рамками fzf (--border=rounded).
+      require("full-border"):setup { type = ui.Border.ROUNDED }
+
+      -- Значки git-статуса. order = 1500 — правее размера файла.
+      require("git"):setup { order = 1500 }
+
+      -- Приглашение starship в шапке. Конфиг берётся общий, ~/.config/starship.toml,
+      -- так что шапка yazi выглядит ровно как приглашение в fish.
+      require("starship"):setup()
+    '';
+
+    settings = {
+      # Фетчеры считаются в фоне на каждый файл в листинге.
+      # id снят сознательно: он нужен только для yazi <= v26.1.22, у нас 26.5.
+      plugin.prepend_fetchers = [
+        { url = "*"; run = "git"; group = "git"; }
+        { url = "*/"; run = "git"; group = "git"; }
+      ];
+
+      # Превью архивов через ouch — вместо голого списка имён показывает дерево.
+      plugin.prepend_previewers = [
+        {
+          mime = "application/{*zip,tar,bzip2,7z*,rar,xz,zstd,java-archive}";
+          run = "ouch";
+        }
+      ];
+    };
 
     keymap.mgr.prepend_keymap = [
       {
         on = "M";
         run = "plugin mount";
         desc = "Диски: смонтировать / отмонтировать";
+      }
+
+      # l вместо штатного enter: на каталоге — войти, на файле — открыть.
+      {
+        on = "l";
+        run = "plugin smart-enter";
+        desc = "Войти в каталог или открыть файл";
+      }
+
+      # f перехвачен у штатного `filter --smart` и отдан прыжку по символу,
+      # а фильтр переехал на F — в варианте smart-filter он всё равно лучше:
+      # не выходит из ввода и сам проваливается в единственный подошедший каталог.
+      {
+        on = "f";
+        run = "plugin jump-to-char";
+        desc = "Прыгнуть к файлу на символ";
+      }
+      {
+        on = "F";
+        run = "plugin smart-filter";
+        desc = "Умный фильтр";
+      }
+
+      # p вместо штатного paste: кладёт в каталог под курсором, а не в текущий.
+      {
+        on = "p";
+        run = "plugin smart-paste";
+        desc = "Вставить в каталог под курсором";
+      }
+
+      {
+        on = [ "c" "m" ];
+        run = "plugin chmod";
+        desc = "chmod на выделенных";
+      }
+
+      # Не <C-d>, как советует README плагина: там штатный «полстраницы вниз».
+      {
+        on = "<C-y>";
+        run = "plugin diff";
+        desc = "Diff выделенного с файлом под курсором";
+      }
+
+      {
+        on = "T";
+        run = "plugin toggle-pane max-preview";
+        desc = "Развернуть / свернуть превью";
+      }
+
+      # Не +/-, как советует README: `-` занят штатным symlink.
+      # Пара +/= выбрана как соседние клавиши (+ это Shift+=).
+      {
+        on = "+";
+        run = "plugin zoom 1";
+        desc = "Приблизить превью";
+      }
+      {
+        on = "=";
+        run = "plugin zoom -1";
+        desc = "Отдалить превью";
+      }
+
+      {
+        on = "C";
+        run = "plugin ouch";
+        desc = "Упаковать в архив";
       }
     ];
   };
