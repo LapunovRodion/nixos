@@ -51,6 +51,14 @@ layout {
     }
 }
 
+// Тень под миниатюрами воркспейсов в Overview. Геометрия — в config.kdl,
+// здесь только цвет, чтобы он ехал вместе с палитрой при смене обоев.
+overview {
+    workspace-shadow {
+        color "{{colors.shadow.default.hex}}70"
+    }
+}
+
 recent-windows {
     highlight {
         active-color "{{colors.primary.default.hex}}"

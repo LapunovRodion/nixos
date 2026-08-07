@@ -118,6 +118,12 @@ layout {
     // Set gaps around windows in logical pixels.
     gaps 16
 
+    // Собственный фон воркспейса — прозрачный, чтобы сквозь него был виден
+    // backdrop, куда уехали обои (см. layer-rule на noctalia-wallpaper).
+    // Заводское значение непрозрачное и перекрывает backdrop: именно из-за
+    // него обои пропадали с десктопа, когда правило стояло без этой строки.
+    background-color "transparent"
+
     // When to center a column when changing focus, options are:
     // - "never", default behavior, focusing an off-screen column will keep at the left
     //   or right edge of the screen.
@@ -295,12 +301,47 @@ layer-rule {
     block-out-from "screen-capture"
 }
 
+// Обои — в backdrop, чтобы в Overview они заполняли весь экран под
+// миниатюрами, а не жались внутрь каждой из них.
+//
+// Слои background и bottom зумируются ВМЕСТЕ с воркспейсами, поэтому обои
+// noctalia (слой background, см. `niri msg layers`) по умолчанию уезжают в
+// миниатюру. place-within-backdrop переносит поверхность за воркспейсы.
+// Работает только для background с exclusive zone -1 — у noctalia так.
+//
+// В паре с background-color "transparent" в layout выше обои остаются
+// видны и на обычном десктопе. Побочный эффект: они больше не едут вместе
+// с воркспейсами при прокрутке, а стоят неподвижно.
+//
+// ^noctalia-backdrop$ сюда добавлять НЕЛЬЗЯ: это слой размытия под
+// стеклянными панелями (noctalia.nix), к обоям он отношения не имеет.
+layer-rule {
+    match namespace="^noctalia-wallpaper$"
+    place-within-backdrop true
+}
+
 // To run a shell command (with variables, pipes, etc.), use spawn-sh-at-startup:
 // spawn-sh-at-startup "qs -c ~/source/qs/MyAwesomeShell"
 
 hotkey-overlay {
     // Uncomment this line to disable the "Important Hotkeys" pop-up at startup.
     // skip-at-startup
+}
+
+// Вид самого Overview. Фон под миниатюрами — обои, см. layer-rule выше;
+// backdrop-color здесь поэтому не задаётся, он был бы не виден.
+overview {
+    // Масштаб миниатюр. Меньше — больше воркспейсов влезает на экран.
+    zoom 0.5
+
+    // Тень под миниатюрами: без неё они сливаются с обоями в бэкдропе.
+    // Цвет держим в тон палитре — задаётся в theme.kdl.in, как и остальные
+    // тени; здесь только геометрия.
+    workspace-shadow {
+        softness 40
+        spread 10
+        offset x=0 y=10
+    }
 }
 
 // Горячий угол слева сверху (наведение мышью → Overview) отключён:
