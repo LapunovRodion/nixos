@@ -328,6 +328,14 @@ in
     inputs.agenix.packages.${pkgs.system}.default
     # 4. Claude Code (CLI, unfree) — обёрнутый на VPN, см. let выше
     claude-code-vpn
+    # 4a. OpenSpec — spec-driven разработка для агентов: `openspec init` в репе
+    #     заводит каталог openspec/ (specs + changes), дальше агент правит
+    #     спеку, а не догадывается. Обёртка на VPN НЕ нужна: он никуда не
+    #     ходит, только читает и пишет файлы в проекте.
+    #     Версия из нашего пина nixpkgs — 1.4.1; в свежем unstable уже 1.7.0
+    #     (апстрим — 1.8.0). Догнать: `nix flake update nixpkgs` целиком либо
+    #     завести openspec в оверлей из nixpkgs-cc, как сделано с claude-code.
+    openspec
     # 5. Obsidian (unfree) — само хранилище синхронизируется через syncthing ниже
     obsidian
     # 6. Hermes Agent (харнесс, управление системой) — бинарь `hermes` (с TUI).
