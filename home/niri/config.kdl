@@ -427,7 +427,15 @@ binds {
     // Suggested binds for running programs: terminal, app launcher, screen locker.
     Mod+T hotkey-overlay-title="Open a Terminal: kitty" { spawn "kitty"; }
     Mod+D hotkey-overlay-title="Run an Application: fuzzel" { spawn "fuzzel"; }
-    Super+Alt+L hotkey-overlay-title="Lock the Screen: swaylock" { spawn "swaylock"; }
+    Mod+B hotkey-overlay-title="Open a Browser: Zen" { spawn "zen-twilight"; }
+    // yazi — TUI, поэтому запускается внутри kitty.
+    Mod+E hotkey-overlay-title="File Manager: yazi" { spawn "kitty" "-e" "yazi"; }
+    // Блокировка — встроенный локскрин noctalia (виджеты настроены в
+    // noctalia.nix, он же срабатывает по idle-таймауту). Раньше здесь стоял
+    // swaylock, которого в системе нет, — бинд просто ничего не делал.
+    Super+Alt+L hotkey-overlay-title="Lock the Screen: noctalia" {
+        spawn "noctalia" "msg" "session" "lock";
+    }
 
     // Use spawn-sh to run a shell command. Do this if you need pipes, multiple commands, etc.
     // Note: the entire command goes as a single argument. It's passed verbatim to `sh -c`.
@@ -450,11 +458,14 @@ binds {
     XF86AudioPrev        allow-when-locked=true { spawn-sh "playerctl previous"; }
     XF86AudioNext        allow-when-locked=true { spawn-sh "playerctl next"; }
 
-    // Example brightness key mappings for brightnessctl.
-    // You can use regular spawn with multiple arguments too (to avoid going through "sh"),
-    // but you need to manually put each argument in separate "" quotes.
-    XF86MonBrightnessUp allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "+10%"; }
-    XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "10%-"; }
+    // Яркость — через noctalia: свой OSD, шаг берётся из настроек шелла.
+    // Заводской вариант на brightnessctl не работал, пакета в системе нет.
+    XF86MonBrightnessUp allow-when-locked=true { spawn "noctalia" "msg" "brightness-up"; }
+    XF86MonBrightnessDown allow-when-locked=true { spawn "noctalia" "msg" "brightness-down"; }
+    // Дубль на Mod+F7/F8: Fn-ряд на этом ноуте неудобен. Именно с Mod,
+    // а не голые F7/F8 — иначе niri перехватывал бы их у приложений.
+    Mod+F7 allow-when-locked=true { spawn "noctalia" "msg" "brightness-down"; }
+    Mod+F8 allow-when-locked=true { spawn "noctalia" "msg" "brightness-up"; }
 
     // Open/close the Overview: a zoomed-out view of workspaces and windows.
     // You can also move the mouse into the top-left hot corner,
@@ -600,7 +611,13 @@ binds {
     // Mod+Ctrl+1 { move-window-to-workspace 1; }
 
     // Switches focus between the current and the previous workspace.
-    // Mod+Tab { focus-workspace-previous; }
+    Mod+Tab { focus-workspace-previous; }
+
+    // Переключатель окон noctalia — поиск по всем воркспейсам, в отличие
+    // от overview (Mod+O), который показывает только текущий монитор.
+    Mod+Space hotkey-overlay-title="Window switcher" {
+        spawn "noctalia" "msg" "window-switcher";
+    }
 
     // The following binds move the focused window in and out of a column.
     // If the window is alone, they will consume it into the nearby column to the side.
@@ -655,8 +672,9 @@ binds {
     Mod+Shift+Equal { set-window-height "+10%"; }
 
     // Move the focused window between the floating and the tiling layout.
-    Mod+V       { toggle-window-floating; }
-    Mod+Shift+V { switch-focus-between-floating-and-tiling; }
+    // Mod+V отдан истории буфера обмена, поэтому floating живёт на N.
+    Mod+N       { toggle-window-floating; }
+    Mod+Shift+N { switch-focus-between-floating-and-tiling; }
 
     // Toggle tabbed column display mode.
     // Windows in this column will appear as vertical tabs,
@@ -687,8 +705,7 @@ binds {
     // Снимок области сразу в редактор — стрелки/текст/размытие,
     // чего не умеет ни noctalia, ни niri.
     // История буфера обмена — встроенная панель noctalia.
-    // (Mod+V занят под toggle-window-floating, Mod+Shift+V — под floating/tiling.)
-    Mod+Alt+V hotkey-overlay-title="Clipboard history" {
+    Mod+V hotkey-overlay-title="Clipboard history" {
         spawn "noctalia" "msg" "panel-toggle" "clipboard";
     }
 
