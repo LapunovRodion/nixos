@@ -29,6 +29,11 @@
   # hosts/<машина>/outputs.kdl и подключается строкой include в config.kdl.
   xdg.configFile."niri/outputs.kdl".source = osConfig.local.niriOutputs;
 
+  # wayvnc — конфиг VNC-сервера, null на машинах без него (см. modules/options.nix).
+  xdg.configFile."wayvnc/config" = lib.mkIf (osConfig.local.wayvncConfig != null) {
+    source = osConfig.local.wayvncConfig;
+  };
+
   # =============================================================
   # Zen — настройки профиля.
   #

@@ -98,5 +98,16 @@
         что в конфиге композитора зависит от машины.
       '';
     };
+
+    wayvncConfig = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = ''
+        Конфиг wayvnc (~/.config/wayvnc/config): address/port/enable_auth.
+        null там, где VNC не нужен. Какой ВЫХОД захватывать — не сюда,
+        это только CLI-флаг -o в spawn-at-startup (см. outputs.kdl),
+        в конфиг-файле wayvnc такого ключа нет.
+      '';
+    };
   };
 }

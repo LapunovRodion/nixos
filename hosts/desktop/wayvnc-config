@@ -1,0 +1,8 @@
+# Слушаем на всех интерфейсах, но порт никуда не пробрасывается firewall'ом
+# (см. modules/common.nix) — снаружи достаёт только tailscale0, он уже в
+# trustedInterfaces и сам зашифрован WireGuard'ом.
+address=0.0.0.0
+port=5900
+
+# Своя аутентификация поверх Tailscale не нужна — канал и так доверенный.
+enable_auth=false

@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, pkgs, ... }:
 
 # =============================================================
 # laptop — ASUS ROG Zephyrus G14 GA403UU.
@@ -13,6 +13,11 @@
   imports = [ ./hardware-configuration.nix ../../modules/dev.nix ];
 
   networking.hostName = "laptop";
+
+  environment.systemPackages = [
+    # vncviewer — подключение к desktop:5900 по Tailscale (см. wayvnc на desktop).
+    pkgs.tigervnc
+  ];
 
   # Первая установка была на 26.05 — значение не меняется никогда,
   # оно фиксирует семантику дефолтов, а не версию системы.

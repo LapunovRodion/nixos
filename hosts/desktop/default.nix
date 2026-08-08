@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, pkgs, ... }:
 
 # =============================================================
 # desktop — стационарный: NVIDIA RTX 3060 Eagle 12 ГБ, три монитора
@@ -13,6 +13,10 @@
   imports = [ ./hardware-configuration.nix ];
 
   networking.hostName = "desktop";
+
+  environment.systemPackages = [
+    pkgs.wayvnc
+  ];
 
   # ЗАПОЛНИТЬ при установке: ставится равным версии NixOS, с которой машина
   # установлена, и после этого не меняется никогда.
@@ -58,5 +62,6 @@
     # тогда home-manager положит туда user.js (шрифты, стартовая страница).
     zenProfileDir = null;
     niriOutputs = ./outputs.kdl;
+    wayvncConfig = ./wayvnc-config;
   };
 }
