@@ -23,7 +23,7 @@
   system.stateVersion = "26.05";
 
   # ---------------------------------------------------------------
-  # NVIDIA (RTX 3060, GA106 «Ampere») — драйвер + CUDA для локальных LLM.
+  # NVIDIA (RTX 3060, GA106 «Ampere») — драйвер для игр (Steam).
   # ---------------------------------------------------------------
   hardware.graphics.enable = true;
   services.xserver.videoDrivers = [ "nvidia" ];

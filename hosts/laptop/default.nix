@@ -34,7 +34,7 @@
   boot.initrd.kernelModules = [ "amdgpu" ];
 
   # ---------------------------------------------------------------
-  # NVIDIA (RTX 4050, dGPU) — драйвер + CUDA для локальных LLM.
+  # NVIDIA (RTX 4050, dGPU) — драйвер для игр.
   # PRIME offload: дисплей на amdgpu, NVIDIA просыпается под нагрузку/`nvidia-offload`.
   # ---------------------------------------------------------------
   hardware.graphics.enable = true;

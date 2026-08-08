@@ -7,7 +7,7 @@
     # Отдельный, всегда свежий срез nixpkgs ТОЛЬКО под claude-code.
     # Через оверлей (см. configuration.nix) им подменяется pkgs.claude-code,
     # чтобы обновлять CLI независимо от основного nixpkgs — не утаскивая весь
-    # unstable (и его случайные поломки, напр. сборку ollama-cuda).
+    # unstable (и его случайные поломки).
     # Обновление CLI: nix flake update nixpkgs-cc  →  rebuild.
     nixpkgs-cc.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -100,11 +100,6 @@
       url = "github:baairon/torlink";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
-    # hermes-agent — харнесс локального ИИ (управление системой) + память QMD.
-    # Официальный flake на uv2nix + готовый nixosModules.default.
-    # БЕЗ follows на nixpkgs: у него свой пиннинг под uv2nix, перебивать ломает сборку.
-    hermes-agent.url = "github:NousResearch/hermes-agent";
   };
 
   outputs = { self, nixpkgs, home-manager, noctalia, ... }@inputs:
@@ -120,7 +115,6 @@
           ./modules/common.nix
           ./hosts/${name}
           noctalia.nixosModules.default
-          inputs.hermes-agent.nixosModules.default
           inputs.agenix.nixosModules.default
           home-manager.nixosModules.home-manager
           {
