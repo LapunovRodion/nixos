@@ -15,8 +15,12 @@
   networking.hostName = "laptop";
 
   environment.systemPackages = [
-    # vncviewer — подключение к desktop:5900 по Tailscale (см. wayvnc на desktop).
-    pkgs.tigervnc
+    # Remmina — GUI-клиент для подключения к desktop:5900 по Tailscale
+    # (см. wayvnc на desktop). Взят вместо голого vncviewer ради
+    # сохранённых профилей подключения: один раз завести профиль
+    # (VNC, <tailscale-ip>:5900), дальше просто открывать приложение
+    # и кликать по нему — не набирать адрес каждый раз.
+    pkgs.remmina
   ];
 
   # Первая установка была на 26.05 — значение не меняется никогда,
