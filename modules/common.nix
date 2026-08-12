@@ -93,7 +93,10 @@ let
   # Chromium под niri (нет GNOME/KDE) берёт прокси из СТРОЧНЫХ http_proxy/https_proxy;
   # дочерние node/MCP-процессы («ноды») — из привычных HTTP_PROXY/HTTPS_PROXY.
   # Задаём оба регистра → через VPN идёт и приложение, и его ноды («полностью»).
-  claude-desktop-base = inputs.claude-desktop.packages.${pkgs.system}.claude-desktop-with-fhs;
+  # `default` — единственный пакет флейка (официальный .deb, уже самодостаточный
+  # Electron-трей без FHS-костылей), в отличие от старого k3d3-флейка с
+  # claude-desktop-with-fhs.
+  claude-desktop-base = inputs.claude-desktop.packages.${pkgs.system}.default;
   claude-desktop-vpn = pkgs.symlinkJoin {
     name = "claude-desktop-vpn";
     paths = [ claude-desktop-base ];
@@ -399,7 +402,7 @@ in
     # Фоновая синхронизация папок и так на syncthing (см. ниже).
     localsend
 
-    # ---- Batch 3b: браузер + claude-desktop (из сторонних flake) ----
+    # ---- Batch 3b: браузер (из стороннего flake) ----
     # Zen — ветка Twilight (ночные сборки) вместо стабильной (ревизия 2026-07-28).
     # twilight, а не twilight-official: первый берёт зеркало, которое сам flake
     # пересобирает и пиннит по хешу (обновляется через nix flake update), второй
@@ -409,8 +412,8 @@ in
     # так что история, вкладки, user.js и тема из noctalia остаются на месте.
     # Бинарь и .desktop называются zen-twilight, а не zen-beta.
     inputs.zen-browser.packages.${pkgs.system}.twilight
-    # claude-desktop — обёрнут на VPN (claude-desktop-vpn в let выше), а не голый пакет
-    claude-desktop-vpn
+    # claude-desktop сюда НЕ входит: ставится модулем programs.claude-desktop
+    # ниже (свой пакет claude-desktop-vpn, обёрнутый на VPN, см. let выше)
 
     # ---- Офис ----
     # OnlyOffice — редактор документов (docx/xlsx/pptx), бинарная сборка от
@@ -432,6 +435,20 @@ in
     # с сервера; Downloads (трек/альбом/артист/плейлист) сохраняет файлы
     # локально для офлайн-прослушивания.
     aonsoku
+
+    # ---- Игры: Lutris (второй способ, кроме Steam см. ниже) ----
+    # Не-Steam Windows-игры: GOG, Epic, автономные .exe. Отдельного
+    # NixOS-модуля programs.lutris в этом срезе nixpkgs ещё нет —
+    # заводим обычными пакетами. 32-битная графика уже включена модулем
+    # steam ниже, отдельно не нужна. Системный wine и winetricks — база
+    # и ручная донастройка префиксов; сам Lutris при установке игры
+    # докачивает свои раннеры (wine-ge, DXVK, vkd3d) под конкретную игру.
+    # Ноут (гибрид, PRIME offload): чтобы игра шла на dGPU, а не на iGPU,
+    # в настройках игры в Lutris → System options → Command prefix
+    # прописать nvidia-offload — тот же приём, что и для Steam ниже.
+    lutris
+    wineWow64Packages.stable   # не wineWowPackages — тот deprecated в этом nixpkgs
+    winetricks
   ];
 
   # plocate — быстрый поиск по имени файла (updatedb по таймеру).
@@ -474,6 +491,21 @@ in
   };
 
   # ---------------------------------------------------------------
+  # Claude Desktop — модулем стороннего флейка (nixosModules.default),
+  # см. flake.nix и claude-desktop-vpn в let выше.
+  # ---------------------------------------------------------------
+  programs.claude-desktop = {
+    enable = true;
+    package = claude-desktop-vpn;
+    # Cowork — агент работает в QEMU micro-VM. Модуль сам заводит symlink'и
+    # OVMF/virtiofsd в /usr (приложение проверяет только эти абсолютные
+    # пути, без env-переопределений) и boot.kernelModules = [ "vhost_vsock" ].
+    # Доступ к /dev/kvm — через группу kvm ниже.
+    cowork.enable = true;
+    cowork.kvmUsers = [ "artur" ];
+  };
+
+  # ---------------------------------------------------------------
   # 6. Tailscale — mesh-VPN до остальных машин
   # ---------------------------------------------------------------
   # Модуль сам ставит firewall.checkReversePath = "loose" — без этого
@@ -493,6 +525,18 @@ in
   # игры в Steam → Launch Options прописать:  nvidia-offload %command%
   # На десктопе видеокарта одна — ничего дописывать не нужно.
   programs.steam.enable = true;
+
+  # ---------------------------------------------------------------
+  # nix-ld — динамический линковщик-заглушка для generic-бинарников
+  # ---------------------------------------------------------------
+  # Без него /lib64/ld-linux-x86-64.so.2 указывает на stub-ld, который просто
+  # печатает ошибку вместо запуска. Ломает конкретно pressure-vessel
+  # (контейнер Steam Linux Runtime, который umu/Proton поднимает поверх уже
+  # существующей FHS-песочницы Lutris) — сторонние Windows-установщики через
+  # Proton падают на инициализации этого вложенного контейнера с "Could not
+  # start dynamically linked executable". С nix-ld он получает нормальный
+  # ld.so и работает как на обычном дистрибутиве.
+  programs.nix-ld.enable = true;
 
   # ---------------------------------------------------------------
   # LocalSend — порт для обнаружения и приёма файлов

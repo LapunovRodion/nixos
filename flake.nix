@@ -81,14 +81,16 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # claude-desktop (Linux) — нет в nixpkgs, community-flake.
-    # Пиним его nixpkgs на СТАБИЛЬНЫЙ 25.05: в свежем unstable убрали весь набор
-    # nodePackages (flake на него завязан, нужен asar). follows не спасал —
-    # flake сам просит nixos-unstable и дедуплицировался с корневым. Явный url
-    # на 25.05 создаёт отдельный узел, где nodePackages ещё есть.
+    # claude-desktop (Linux) — нет в nixpkgs. Официальный .deb от Anthropic
+    # (не community-стаб с заглушенными нативными модулями, как был раньше
+    # у k3d3/claude-desktop-linux-flake), репакованный под Nix; апстрим сам
+    # бампает version+hash ежедневной GitHub Action по apt-индексу Anthropic.
+    # Несёт свой nixosModules.default (программа programs.claude-desktop,
+    # см. modules/common.nix) — в т.ч. системную обвязку для Cowork
+    # (VM-песочница агента): OVMF, virtiofsd, vhost_vsock, группа kvm.
     claude-desktop = {
-      url = "github:k3d3/claude-desktop-linux-flake";
-      inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+      url = "github:nmcbride/claude-desktop-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # torlink — TUI-поиск торрентов, в nixpkgs его нет. Апстрим держит пакет сам
@@ -116,6 +118,7 @@
           ./hosts/${name}
           noctalia.nixosModules.default
           inputs.agenix.nixosModules.default
+          inputs.claude-desktop.nixosModules.default
           home-manager.nixosModules.home-manager
           {
             home-manager.useGlobalPkgs = true;
