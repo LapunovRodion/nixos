@@ -295,8 +295,8 @@ in
     # сразу развернуть на весь экран на другом мониторе.
     #
     # Последний аргумент — ИСТОЧНИК, --fullscreen-output — ПРИЁМНИК:
-    #   wl-mirror --fullscreen-output HDMI-A-1 HDMI-A-2   Acer → Samsung
-    #   wl-mirror HDMI-A-2                                просто окном
+    #   wl-mirror --fullscreen-output HDMI-A-2 HDMI-A-1   Acer → Samsung
+    #   wl-mirror HDMI-A-1                                просто окном
     #
     # Осторожно с -f: это --freeze (заморозить картинку), а НЕ fullscreen.
     # Полный экран без указания монитора — -F.
