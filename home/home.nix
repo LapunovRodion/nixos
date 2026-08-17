@@ -175,6 +175,15 @@
     enableFishIntegration = true;
   };
 
+  # --- автозагрузка окружения проекта по .envrc (use flake и т.п.) ---
+  programs.direnv = {
+    enable = true;
+    enableFishIntegration = true;
+    # Кэширует devShell из flake — без этого nix develop пересобирался бы
+    # заново при каждом cd.
+    nix-direnv.enable = true;
+  };
+
   # --- файловый менеджер: хук `y` (сменить каталог при выходе) ---
   programs.yazi = {
     enable = true;

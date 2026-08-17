@@ -6,6 +6,10 @@ let
   ricekit = pkgs.python3Packages.callPackage ../pkgs/ricekit.nix { };
   tuistore = pkgs.python3Packages.callPackage ../pkgs/tuistore.nix { inherit ricekit; };
 
+  # specify-cli (GitHub Spec Kit) — нет в nixpkgs, пакуем из PyPI сами.
+  # См. pkgs/specify-cli.nix. Заменяет прежний `uv tool install`.
+  specify-cli = pkgs.python3Packages.callPackage ../pkgs/specify-cli.nix { };
+
   # Основной моноширинный, тоже мимо nixpkgs — см. pkgs/lyth-mono.nix.
   lyth-mono = pkgs.callPackage ../pkgs/lyth-mono.nix { };
 
@@ -286,6 +290,7 @@ in
     git
     vim
     wget
+    uv                    # python-тулчейн и раннер (uvx) для проектов
     # niri окружение
     fuzzel               # лаунчер
     kitty                # терминал (единственный; вместо alacritty/rio)
@@ -388,6 +393,10 @@ in
 
     # tuistore — витрина TUI-приложений (не установщик, см. pkgs/tuistore.nix)
     tuistore
+
+    # specify-cli — CLI Spec Kit (`specify init`/`/specify`/`/plan`/`/tasks`
+    # в Claude Code), см. pkgs/specify-cli.nix
+    specify-cli
 
     # ---- Книги ----
     # Читалка. Библиотека живёт на сервере (Grimmory, http://server:6060),
