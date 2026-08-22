@@ -613,6 +613,111 @@
     '';
   };
 
+  # --- tmux ---
+  # Пакет объявлен в systemPackages (modules/common.nix), здесь только
+  # конфиг — ровно та же схема, что у kitty выше.
+  #
+  # Берётся ради одного: сессия переживает закрытие терминала. Делить
+  # экран на панели по-хорошему незачем (этим занят niri), но раз уж
+  # панели есть, биндам стоит быть привычными — отсюда всё ниже.
+  programs.tmux = {
+    enable = true;
+
+    # Заводской префикс Ctrl-b требует тянуться мизинцем через весь ряд.
+    # Ctrl-a ближе; модуль на смену префикса сам дописывает
+    # `bind C-a send-prefix` (HM, modules/programs/tmux.nix:99), поэтому
+    # «в начало строки» в fish внутри tmux — это Ctrl-a Ctrl-a.
+    prefix = "C-a";
+
+    # Окна и панели нумеруются с 1: на цифровом ряду 1 идёт первой,
+    # а 0 стоит за 9 — с нуля попадать неудобно.
+    baseIndex = 1;
+
+    # copy-mode с биндами vim — как в nixvim ниже, чтобы не переучиваться.
+    # customPaneNavigationAndResize действует ТОЛЬКО при keyMode = "vi"
+    # (там же, :74) и даёт hjkl на переход между панелями, HJKL на размер.
+    keyMode = "vi";
+    customPaneNavigationAndResize = true;
+    resizeAmount = 5;
+
+    mouse = true;         # колесо — скроллбек, клик — панель, драг границы — размер
+    focusEvents = true;   # vim узнаёт про потерю фокуса, autoread оживает
+    historyLimit = 50000; # заводские 2000 строк кончаются на первом же сборочном логе
+
+    # Заводские 500 мс — это пауза после Esc, в vim она ощущается как
+    # залипание. 0 не ставлю: по ssh при нуле рвутся escape-последовательности.
+    escapeTime = 10;
+
+    # Без этого TERM внутри tmux = "screen", и подсветка деградирует до 8 цветов.
+    terminal = "tmux-256color";
+
+    extraConfig = ''
+      # ---- truecolor ----
+      # tmux-256color объявляет 256 цветов; RGB добавляется оверрайдом на
+      # ВНЕШНИЙ терминал, а не на внутренний. kitty представляется как
+      # xterm-kitty; вторая запись — на случай ssh с чужой машины.
+      set -ga terminal-overrides ",xterm-kitty:RGB,xterm-256color:RGB"
+
+      # ---- сплиты ----
+      # | и - вместо % и ": символ совпадает с направлением разреза.
+      # -c "#{pane_current_path}" — новая панель открывается в текущем
+      # каталоге, а не в $HOME (заводское поведение, которое всех бесит).
+      unbind '"'
+      unbind %
+      bind | split-window -h -c "#{pane_current_path}"
+      bind - split-window -v -c "#{pane_current_path}"
+      bind c new-window -c "#{pane_current_path}"
+
+      # ---- окна ----
+      # Закрыли окно посередине — остальные перенумеровываются, дырок в
+      # ряду 1..9 не остаётся.
+      set -g renumber-windows on
+      # Соседнее окно без префикса, одной комбинацией.
+      bind -n M-H previous-window
+      bind -n M-L next-window
+
+      # ---- буфер обмена ----
+      # Выделение как в vim: v — начать, y — скопировать. copy-pipe отдаёт
+      # выделенное в wl-copy (wl-clipboard в systemPackages), то есть в
+      # СИСТЕМНЫЙ буфер, а не только во внутренний буфер tmux.
+      bind -T copy-mode-vi v send-keys -X begin-selection
+      bind -T copy-mode-vi y send-keys -X copy-pipe-and-cancel "wl-copy"
+      # Мышью: отпустили кнопку — скопировалось, но copy-mode не закрылся и
+      # вид не прыгнул в конец скроллбека (в этом весь смысл -no-clear).
+      bind -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-no-clear "wl-copy"
+      # OSC52: тот же буфер работает, когда tmux крутится на УДАЛЁННОЙ машине
+      # по ssh — там wl-copy нет, последовательность уходит в kitty, и уже он
+      # кладёт текст в wayland-буфер. Локально дублирует wl-copy, не мешает.
+      set -g set-clipboard on
+
+      # ---- перезагрузка конфига ----
+      # Сам файл — read-only симлинк в /nix/store, правки идут через rebuild.
+      # Бинд нужен, чтобы подхватить новый конфиг в уже живой сессии, не
+      # убивая её.
+      bind r source-file ~/.config/tmux/tmux.conf \; display "конфиг перечитан"
+
+      # ---- статус-строка ----
+      # Цвета — номерами ANSI-палитры (colour0..15), ни одного hex: строка
+      # едет за темой kitty, которую красит noctalia по обоям. Тот же приём,
+      # что у bat, fzf, delta и starship выше.
+      # bg=default — фон терминала, то есть прозрачность от niri сохраняется.
+      set -g status-position bottom
+      set -g status-style "bg=default,fg=colour7"
+      set -g status-interval 5
+      set -g status-left "#[fg=colour4,bold] #S #[default]"
+      set -g status-left-length 30
+      set -g status-right "#[fg=colour8]%H:%M "
+      set -g window-status-format " #I:#W "
+      set -g window-status-current-format " #I:#W "
+      set -g window-status-current-style "fg=colour4,bold"
+      set -g pane-border-style "fg=colour8"
+      set -g pane-active-border-style "fg=colour4"
+      set -g message-style "bg=colour4,fg=colour0"
+      # Заводская 750 мс — сообщение исчезает раньше, чем успеваешь прочесть.
+      set -g display-time 2000
+    '';
+  };
+
   # --- монитор ресурсов (вместо glances) ---
   programs.btop.enable = true;
 
