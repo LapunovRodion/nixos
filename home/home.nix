@@ -651,6 +651,123 @@
     # Без этого TERM внутри tmux = "screen", и подсветка деградирует до 8 цветов.
     terminal = "tmux-256color";
 
+    # =========================================================
+    # Плагины.
+    #
+    # ПОРЯДОК В ИТОГОВОМ ФАЙЛЕ (HM, modules/programs/tmux.nix:360) —
+    # mkBefore(база) → плагины → mkAfter(extraConfig). То есть всё, что
+    # плагин должен УВИДЕТЬ при загрузке, обязано лежать в его собственном
+    # extraConfig: он идёт прямо перед его run-shell. Из общего extraConfig
+    # ниже плагин уже ничего не прочитает — тот выполняется последним.
+    # На этом ловится prefix-highlight, см. его блок.
+    #
+    # Имена пакетов обязаны начинаться на "tmuxplugin", иначе модуль роняет
+    # eval по assertion (там же, :118).
+    # =========================================================
+    plugins = with pkgs.tmuxPlugins; [
+      # ---- floax: всплывающая панель поверх окна ----
+      {
+        plugin = tmux-floax;
+        extraConfig = ''
+          # Заводской бинд p ЗАТЕНЯЕТ previous-window. Оставлен как есть:
+          # так написано во всех гайдах по плагину, а на предыдущее окно
+          # у нас и так повешен Alt-H без префикса.
+          set -g @floax-bind 'p'
+          set -g @floax-bind-menu 'P'
+          set -g @floax-width '80%'
+          set -g @floax-height '80%'
+          # Панель открывается в каталоге текущей панели, а не в $HOME.
+          set -g @floax-change-path 'true'
+          # Плагин принимает ТОЛЬКО восемь базовых имён (black..white), не hex —
+          # то есть цвет берётся из палитры терминала, как у всего остального.
+          set -g @floax-border-color 'blue'
+          set -g @floax-text-color 'blue'
+        '';
+      }
+
+      # ---- sessionx: переключалка сессий на fzf ----
+      {
+        plugin = tmux-sessionx;
+        extraConfig = ''
+          # O, а не o: строчная занята под next-pane.
+          set -g @sessionx-bind 'O'
+          # Показывать в списке не только живые сессии, но и каталоги из базы
+          # zoxide (programs.zoxide ниже) — прыжок в проект сразу создаёт сессию.
+          set -g @sessionx-zoxide-mode 'on'
+          set -g @sessionx-preview-enabled 'true'
+          set -g @sessionx-preview-ratio '55%'
+          set -g @sessionx-window-width '80%'
+          set -g @sessionx-window-height '75%'
+          # Текущую сессию из списка убрать — прыгать в себя незачем.
+          set -g @sessionx-filter-current 'true'
+        '';
+      }
+
+      # ---- which-key: всплывающая шпаргалка по биндам ----
+      {
+        plugin = tmux-which-key;
+        extraConfig = ''
+          # ОБЯЗАТЕЛЬНО. Без этого плагин при старте копирует config.yaml и
+          # init.tmux к себе в каталог установки — то есть в /nix/store, куда
+          # писать нельзя, и падает. С флагом он уходит в
+          #   ~/.config/tmux/plugins/tmux-which-key/config.yaml   (меню)
+          #   ~/.local/share/tmux/plugins/tmux-which-key/init.tmux (сборка)
+          # Апстрим держит эту опцию ровно для «immutable or declarative
+          # operating systems» (README, раздел @tmux-which-key-xdg-enable).
+          #
+          # Оба файла — ИЗМЕНЯЕМОЕ состояние, nix ими не управляет: они
+          # создаются из примеров при первом запуске плагина.
+          set -g @tmux-which-key-xdg-enable 1
+
+          # ОБЯЗАТЕЛЬНО ВТОРОЕ. Плагин копирует шаблоны из /nix/store
+          # обычным `cp`, а тот сохраняет права источника — то есть 0444.
+          # Дальше автосборка меню зовёт build.py, который открывает
+          # init.tmux на запись, и падает на своей же копии:
+          #   PermissionError: [Errno 13] .../init.tmux
+          # а вместе с ним валится весь plugin.sh.tmux (там `set -e`), и
+          # бинд на Space не доходит до tmux вообще.
+          #
+          # Автосборка нужна только чтобы пересобрать меню из config.yaml.
+          # Скопированный init.tmux уже готовый и рабочий, так что просто
+          # выключаем её — плагин ограничивается source-file, а чтение
+          # read-only файла никого не смущает.
+          #
+          # Цена: правки в config.yaml сами по себе ни на что не влияют.
+          # Если понадобится своё меню — снять права-только-чтение и
+          # прогнать build.py руками:
+          #   chmod u+w ~/.local/share/tmux/plugins/tmux-which-key/init.tmux
+          #   chmod u+w ~/.config/tmux/plugins/tmux-which-key/config.yaml
+          # либо собрать init.tmux в nix и положить через xdg.dataFile.
+          set -g @tmux-which-key-disable-autobuild 1
+        '';
+      }
+
+      # ---- prefix-highlight: индикатор нажатого префикса ----
+      {
+        plugin = prefix-highlight;
+        extraConfig = ''
+          set -g @prefix_highlight_fg 'colour0'
+          set -g @prefix_highlight_bg 'colour4'
+          set -g @prefix_highlight_prefix_prompt ' ^A '
+          # Заодно подсвечивать copy-mode: видно, что ты не в оболочке и
+          # клавиши уходят не туда, куда привык.
+          set -g @prefix_highlight_show_copy_mode 'on'
+          set -g @prefix_highlight_copy_mode_attr 'fg=colour0,bg=colour3'
+          set -g @prefix_highlight_copy_prompt ' COPY '
+          # Когда префикс не нажат — пусто, чтобы строка не дёргалась.
+          set -g @prefix_highlight_empty_prompt ""
+
+          # status-left стоит ЗДЕСЬ, а не в общем extraConfig, и это не каприз.
+          # Плагин не добавляет формат от себя: он читает текущее значение
+          # status-left, подменяет в нём литерал #{prefix_highlight} на готовую
+          # строку и записывает обратно (prefix_highlight.tmux:97). Значит
+          # плейсхолдер обязан существовать ДО его run-shell. Общий extraConfig
+          # выполняется после плагинов и просто затёр бы результат.
+          set -g status-left "#[fg=colour4,bold] #S #[default]#{prefix_highlight}"
+        '';
+      }
+    ];
+
     extraConfig = ''
       # ---- truecolor ----
       # tmux-256color объявляет 256 цветов; RGB добавляется оверрайдом на
@@ -704,8 +821,10 @@
       set -g status-position bottom
       set -g status-style "bg=default,fg=colour7"
       set -g status-interval 5
-      set -g status-left "#[fg=colour4,bold] #S #[default]"
-      set -g status-left-length 30
+      # status-left задаётся НЕ здесь, а в блоке плагина prefix-highlight
+      # выше — иначе подстановка плейсхолдера была бы затёрта, см. там же.
+      # Длину поднял с 30: индикатор префикса добавляет ширины.
+      set -g status-left-length 60
       set -g status-right "#[fg=colour8]%H:%M "
       set -g window-status-format " #I:#W "
       set -g window-status-current-format " #I:#W "
