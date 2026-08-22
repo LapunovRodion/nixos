@@ -458,6 +458,16 @@ in
     lutris
     wineWow64Packages.stable   # не wineWowPackages — тот deprecated в этом nixpkgs
     winetricks
+
+    # ---- Чистка диска ----
+    # ncdu — TUI-обход каталогов по размеру, удаление клавишей `d`.
+    #   Домашка: `ncdu ~`, вся система: `sudo ncdu / --exclude /nix`.
+    ncdu
+    # nh — обёртка над nix. Сборка мусора с прогрессом, чистит сразу
+    #   системные и пользовательские профили + gcroots:
+    #     nh clean all --keep 5 --keep-since 14d
+    #   Сначала стоит глянуть `nh clean all --dry-run`.
+    nh
   ];
 
   # plocate — быстрый поиск по имени файла (updatedb по таймеру).

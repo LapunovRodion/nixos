@@ -229,7 +229,7 @@ in
       # умеет только git-источники. Обновление плагинов теперь такое:
       #   nix flake update noctalia-community-plugins && rebuild
       plugins = {
-        auto_update = false;   # обновляет git-источники; здесь их нет
+        auto_update = "none";  # none | official | all; обновляет git-источники, здесь их нет
         source = [
           {
             name = "official";
@@ -416,7 +416,14 @@ in
             type = "login_box";
             output = out;
             cx = centerX; cy = fromBottom 119.0;
-            box_width = 400.0; box_height = 70.0;
+            # Размер коробки — заводской для v5: в неё теперь помещаются
+            # медиа, погода и кнопки сессии, старые 400x70 были от формы
+            # с одним полем ввода.
+            box_width = 720.0; box_height = 196.0;
+            # Разрешение, под которое посчитаны координаты: по нему noctalia
+            # пересчитывает раскладку, если экран окажется другим.
+            placement_width = scr.width * 1.0;
+            placement_height = scr.height * 1.0;
             rotation = 0.0;
             settings = {
               background_color = "surface_variant";
@@ -425,10 +432,16 @@ in
               center_password_text = false;
               input_opacity = 1.0;
               input_radius = 6.0;
+              layout = "regular";
               show_caps_lock = true;
               show_keyboard_layout = true;
               show_login_button = true;
-              show_password_hint = true;
+              show_media = true;
+              show_session_buttons = true;
+              # Карточка статуса над формой ввода. Ошибки и предупреждение
+              # Caps Lock показываются и без неё.
+              show_unlock_hint = true;
+              show_weather = true;
             };
           };
         in
