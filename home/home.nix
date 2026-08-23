@@ -2,6 +2,13 @@
 # osConfig — конфиг СИСТЕМЫ. Доступен потому, что home-manager подключён
 # модулем NixOS; через него читаются опции local.* (см. modules/options.nix),
 # то есть всё, чем ноут отличается от десктопа.
+let
+  # Соответствие ЙЦУКЕН ↔ QWERTY. Нужно там, где приложение ловит ОДИНОЧНУЮ
+  # клавишу без модификатора и xkb помочь не может: normal mode в nvim,
+  # биндинги yazi, клавиши после префикса в tmux. Хоткеи с Ctrl/Alt/Super
+  # к этой таблице отношения не имеют — их чинит раскладка из home/xkb.
+  kbd = import ./keyboard-ru.nix { inherit lib; };
+in
 {
   imports = [
     inputs.noctalia.homeModules.default
