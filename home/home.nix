@@ -35,6 +35,66 @@ let
         else e // { on = if builtins.isList e.on then ru else builtins.head ru; };
     in
     entries: lib.filter (e: e != null) (map swap entries);
+
+  # ---- зеркальные бинды tmux ----
+  #
+  # Префикс Ctrl-a чинит xkb, а вот следующая клавиша идёт БЕЗ модификатора,
+  # и вместо `c` в tmux прилетает `с`. Дублировать бинды руками плохо: их
+  # десятки, часть заводит сам tmux, часть — плагины, и список сразу поедет.
+  #
+  # Поэтому зеркала снимаются с уже загруженной таблицы: `list-keys` печатает
+  # готовые команды bind-key, awk подменяет в них клавишу на кириллическую,
+  # `source-file` скармливает результат обратно. Любой новый бинд —
+  # хоть свой, хоть плагинный — зеркалится сам.
+  tmuxMirrorAwk = pkgs.writeText "tmux-mirror-ru.awk" ''
+    BEGIN {
+      ${lib.concatMapStrings (p: ''
+        map["${lib.escape [ "\\" "\"" ] p.en}"] = "${p.ru}";
+      '') kbd.mirrorPairs}
+    }
+
+    # Строка вида: bind-key [-r] [-N "..."] -T <таблица> <клавиша> <команда...>
+    # Флаги идут ДО -T, команда — после клавиши, поэтому первого вхождения
+    # " -T " достаточно, чтобы отделить хвост и не разбирать флаги.
+    {
+      i = index($0, " -T ")
+      if (i == 0) next
+
+      head = substr($0, 1, i + 3)
+      rest = substr($0, i + 4)
+
+      if (match(rest, /^ *[^ ]+ +/) == 0) next
+      tbl  = substr(rest, RSTART, RLENGTH)
+      rest = substr(rest, RSTART + RLENGTH)
+
+      if (match(rest, /^[^ ]+/) == 0) next
+      key  = substr(rest, RSTART, RLENGTH)
+      tail = substr(rest, RSTART + RLENGTH)
+
+      # Клавиши не из таблицы (F1, C-a, Up) пропускаем молча: им зеркало
+      # не нужно, их либо не трогает раскладка, либо чинит xkb.
+      if (key in map) print head tbl map[key] tail
+    }
+  '';
+
+  tmuxMirror = pkgs.writeShellScript "tmux-mirror-ru" ''
+    set -eu
+
+    # tmux НЕ пинним из pkgs: скрипт зовётся через run-shell уже живым
+    # сервером, и обращаться надо именно к нему, а не к своей копии.
+    out=$(${pkgs.coreutils}/bin/mktemp)
+    trap '${pkgs.coreutils}/bin/rm -f "$out"' EXIT
+
+    # prefix — бинды после Ctrl-a, copy-mode-vi — навигация в буфере
+    # прокрутки. Таблица root (bind -n) не нужна: там всё с модификаторами.
+    for table in prefix copy-mode-vi; do
+      tmux list-keys -T "$table" | ${pkgs.gawk}/bin/awk -f ${tmuxMirrorAwk} >> "$out"
+    done
+
+    if [ -s "$out" ]; then
+      tmux source-file "$out"
+    fi
+  '';
 in
 {
   imports = [
@@ -988,6 +1048,15 @@ in
       set -g message-style "bg=colour4,fg=colour0"
       # Заводская 750 мс — сообщение исчезает раньше, чем успеваешь прочесть.
       set -g display-time 2000
+
+      # ---- раскладка ----
+      # Зеркалит все бинды таблиц prefix и copy-mode-vi в кириллицу, чтобы
+      # Ctrl-a c и Ctrl-a с делали одно и то же. Стоит В САМОМ КОНЦЕ и это
+      # важно: снимок таблицы берётся на момент запуска, всё, что биндится
+      # позже, в зеркало не попадёт. extraConfig модуль кладёт после
+      # плагинов (HM, modules/programs/tmux.nix:360), так что их бинды
+      # уже на месте. Подробности — у tmuxMirror в начале файла.
+      run-shell ${tmuxMirror}
     '';
   };
 
