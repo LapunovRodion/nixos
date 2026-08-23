@@ -1106,6 +1106,33 @@ in
       termguicolors = true;
       scrolloff = 8;
       signcolumn = "yes";
+
+      # История отмен переживает закрытие файла (~/.local/state/nvim/undo).
+      undofile = true;
+      # Заводские 4000 мс — задержка перед CursorHold, на ней висят подсветка
+      # ссылок и всплывающая диагностика от LSP. 250 мс ощущается мгновенным.
+      updatetime = 250;
+      # Сколько ждать продолжения аккорда: столько живёт окно which-key.
+      timeoutlen = 400;
+      splitbelow = true;
+      splitright = true;
+      cursorline = true;
+      # Перенос длинных строк выключен: в коде он ломает счёт строк глазами.
+      wrap = false;
+      # :q с несохранёнными правками спрашивает, а не отказывается молча.
+      confirm = true;
+      mouse = "a";
+
+      # Normal и visual mode работают в русской раскладке: й = q, ц = w и так
+      # далее (таблица — в home/keyboard-ru.nix). Insert mode langmap не
+      # трогает вообще, русский текст набирается как обычно.
+      langmap = kbd.langmap;
+
+      # Обязателен в паре с langmap. Иначе перевод применяется ЕЩЁ РАЗ к тому,
+      # что вернул пользовательский маппинг, и <leader>ff перестаёт открывать
+      # Telescope. Заводское значение в neovim уже false, но пусть стоит явно —
+      # опция ровно про этот случай.
+      langremap = false;
     };
 
     globals.mapleader = " ";   # leader = пробел
@@ -1182,24 +1209,128 @@ in
 
     plugins = {
       web-devicons.enable = true;   # иконки для дерева/telescope
-      telescope.enable = true;      # быстрый поиск файлов/по содержимому
-      treesitter.enable = true;     # умная подсветка
       nvim-tree.enable = true;      # дерево файлов слева
       lualine.enable = true;        # статусная строка
       gitsigns.enable = true;       # git-пометки в gutter
       comment.enable = true;        # gcc — закомментить строку
       nvim-autopairs.enable = true; # авто-закрытие скобок
-      which-key.enable = true;      # подсказки по хоткеям
+      nvim-surround.enable = true;  # cs"' — поменять окружающие кавычки
+      todo-comments.enable = true;  # подсветка TODO/FIXME
+      indent-blankline.enable = true;
+      lspkind.enable = true;        # иконки видов символов в меню cmp
+      luasnip.enable = true;        # движок сниппетов, нужен cmp ниже
+      bufferline.enable = true;     # строка буферов сверху
+
+      # Прогресс LSP в углу. Не косметика: roslyn грузит solution десятки
+      # секунд, и без индикатора это неотличимо от «ничего не работает».
+      fidget.enable = true;
+
+      # Список диагностик по проекту одним окном.
+      trouble.enable = true;
+
+      # lazygit прямо в редакторе — тот же, что по абревиатуре `lg` в fish.
+      lazygit.enable = true;
+
+      # Подсказки по хоткеям. spec задаёт НАЗВАНИЯ групп — без него вместо
+      # них показываются безымянные «+prefix».
+      which-key = {
+        enable = true;
+        settings.spec = [
+          { __unkeyed-1 = "<leader>f"; group = "Поиск"; }
+          { __unkeyed-1 = "<leader>c"; group = "Код"; }
+          { __unkeyed-1 = "<leader>d"; group = ".NET"; }
+          { __unkeyed-1 = "<leader>g"; group = "Git"; }
+          { __unkeyed-1 = "<leader>h"; group = "Git-ханки"; }
+          { __unkeyed-1 = "<leader>x"; group = "Диагностика"; }
+          { __unkeyed-1 = "<leader>r"; group = "Рефакторинг"; }
+        ];
+      };
+
+      treesitter = {
+        enable = true;
+        # ОБЯЗАТЕЛЬНО: без явного highlight nvim-treesitter ставит парсеры, но
+        # не включает подсветку — раньше конфиг именно этим и грешил, вся
+        # раскраска шла от старого regex-синтаксиса.
+        # Грамматики отдельно перечислять не нужно: nixvim по умолчанию
+        # собирает allGrammars, там уже есть c_sharp, xml, latex, markdown.
+        settings = {
+          highlight.enable = true;
+          indent.enable = true;
+        };
+      };
+
+      telescope = {
+        enable = true;
+        # Нативный фильтр на C: на дереве исходников .NET разница с
+        # ванильным lua-матчером заметна глазом.
+        extensions.fzf-native.enable = true;
+
+        keymaps = {
+          "<leader>ff" = { action = "find_files";           options.desc = "Найти файл"; };
+          "<leader>fg" = { action = "live_grep";            options.desc = "Поиск по содержимому"; };
+          "<leader>fb" = { action = "buffers";              options.desc = "Буферы"; };
+          "<leader>fh" = { action = "help_tags";            options.desc = "Справка"; };
+          "<leader>fd" = { action = "diagnostics";          options.desc = "Диагностики проекта"; };
+          "<leader>fr" = { action = "resume";               options.desc = "Повторить прошлый поиск"; };
+          "<leader>fs" = { action = "lsp_document_symbols"; options.desc = "Символы файла"; };
+        };
+      };
 
       # автодополнение
       cmp = {
         enable = true;
         autoEnableSources = true;
-        settings.sources = [
-          { name = "nvim_lsp"; }
-          { name = "path"; }
-          { name = "buffer"; }
-        ];
+        settings = {
+          sources = [
+            { name = "nvim_lsp"; }
+            { name = "luasnip"; }
+            { name = "path"; }
+            { name = "buffer"; }
+          ];
+
+          # Как cmp разворачивает сниппет. Без этого пункт дополнения от
+          # roslyn вставится сырым текстом вида `${1:value}`: сервер шлёт
+          # сниппеты, потому что cmp_nvim_lsp объявил их поддержку.
+          snippet.expand = ''
+            function(args)
+              require('luasnip').lsp_expand(args.body)
+            end
+          '';
+
+          # Без этого блока у меню автодополнения НЕТ клавиш вообще: cmp не
+          # раздаёт пресет сам, и <CR>/<C-Space> просто ничего не делают.
+          # `cmp` и `luasnip` — локальные переменные в сгенерированном
+          # init.lua, поэтому обращаемся к ним напрямую.
+          mapping.__raw = ''
+            cmp.mapping.preset.insert({
+              ['<C-b>'] = cmp.mapping.scroll_docs(-4),
+              ['<C-f>'] = cmp.mapping.scroll_docs(4),
+              ['<C-Space>'] = cmp.mapping.complete(),
+              ['<C-e>'] = cmp.mapping.abort(),
+              ['<CR>'] = cmp.mapping.confirm({ select = true }),
+              ['<Tab>'] = cmp.mapping(function(fallback)
+                local luasnip = require('luasnip')
+                if cmp.visible() then
+                  cmp.select_next_item()
+                elseif luasnip.expand_or_locally_jumpable() then
+                  luasnip.expand_or_jump()
+                else
+                  fallback()
+                end
+              end, { 'i', 's' }),
+              ['<S-Tab>'] = cmp.mapping(function(fallback)
+                local luasnip = require('luasnip')
+                if cmp.visible() then
+                  cmp.select_prev_item()
+                elseif luasnip.locally_jumpable(-1) then
+                  luasnip.jump(-1)
+                else
+                  fallback()
+                end
+              end, { 'i', 's' }),
+            })
+          '';
+        };
       };
 
       # Форматирование одним фронтендом на все языки. lsp_format = fallback:
@@ -1377,9 +1508,54 @@ in
 
     # горячие клавиши
     keymaps = [
-      { key = "<leader>ff"; action = "<cmd>Telescope find_files<cr>"; options.desc = "Найти файл"; }
-      { key = "<leader>fg"; action = "<cmd>Telescope live_grep<cr>"; options.desc = "Поиск по содержимому"; }
-      { key = "<leader>e";  action = "<cmd>NvimTreeToggle<cr>";      options.desc = "Дерево файлов"; }
+      # ---- Переходы между окнами ----
+      #
+      # Сокращения к <C-w>h и компании. Нужны не только ради дерева: снизу
+      # открывается терминал dotnet, сбоку — список Trouble, и выбираться
+      # оттуда штатным аккордом каждый раз утомительно.
+      #
+      # Раскладка тут ни при чём: Ctrl-сочетания чинит xkb (home/xkb), а не
+      # langmap, поэтому Ctrl+р работает так же, как Ctrl+h.
+      { key = "<C-h>"; action = "<C-w>h"; options.desc = "Окно слева"; }
+      { key = "<C-j>"; action = "<C-w>j"; options.desc = "Окно снизу"; }
+      { key = "<C-k>"; action = "<C-w>k"; options.desc = "Окно сверху"; }
+      { key = "<C-l>"; action = "<C-w>l"; options.desc = "Окно справа"; }
+
+      # Выход из терминального режима. ИМЕННО двойной Esc, а не одиночный:
+      # одиночный сломал бы lazygit, который открывается тем же терминалом и
+      # сам использует Esc для возврата на шаг назад. После <Esc><Esc>
+      # работают обычные <C-h>/<C-j> выше.
+      { mode = "t"; key = "<Esc><Esc>"; action = "<C-\\><C-n>"; options.desc = "Выйти из терминала"; }
+
+      # ---- Дерево файлов ----
+      { key = "<leader>e"; action = "<cmd>NvimTreeToggle<cr>";   options.desc = "Дерево файлов"; }
+      # Открыть дерево и сразу встать на файл, который правишь. Без этого
+      # дерево открывается там, где его закрыли, и текущий файл приходится
+      # искать глазами.
+      { key = "<leader>o"; action = "<cmd>NvimTreeFindFile<cr>"; options.desc = "Показать файл в дереве"; }
+
+      { key = "<leader>gg"; action = "<cmd>LazyGit<cr>"; options.desc = "LazyGit"; }
+
+      # Буферы
+      { key = "<S-h>"; action = "<cmd>BufferLineCyclePrev<cr>"; options.desc = "Предыдущий буфер"; }
+      { key = "<S-l>"; action = "<cmd>BufferLineCycleNext<cr>"; options.desc = "Следующий буфер"; }
+
+      # Диагностика списком
+      { key = "<leader>xx"; action = "<cmd>Trouble diagnostics toggle<cr>"; options.desc = "Диагностики"; }
+      { key = "<leader>xq"; action = "<cmd>Trouble qflist toggle<cr>";      options.desc = "Quickfix"; }
+
+      # .NET — обёртки из extraConfigLua выше
+      { key = "<leader>db"; action.__raw = "function() _G.nixvim_dotnet.build() end";   options.desc = "Собрать решение"; }
+      { key = "<leader>dt"; action.__raw = "function() _G.nixvim_dotnet.test() end";    options.desc = "Прогнать тесты"; }
+      { key = "<leader>dr"; action.__raw = "function() _G.nixvim_dotnet.run() end";     options.desc = "Запустить проект"; }
+      { key = "<leader>dR"; action.__raw = "function() _G.nixvim_dotnet.restore() end"; options.desc = "Restore"; }
+
+      # Git-ханки (gitsigns)
+      { key = "]c"; action = "<cmd>Gitsigns next_hunk<cr>"; options.desc = "Следующий ханк"; }
+      { key = "[c"; action = "<cmd>Gitsigns prev_hunk<cr>"; options.desc = "Предыдущий ханк"; }
+      { key = "<leader>hp"; action = "<cmd>Gitsigns preview_hunk<cr>"; options.desc = "Показать ханк"; }
+      { key = "<leader>hs"; action = "<cmd>Gitsigns stage_hunk<cr>";   options.desc = "Застейджить ханк"; }
+      { key = "<leader>hr"; action = "<cmd>Gitsigns reset_hunk<cr>";   options.desc = "Откатить ханк"; }
     ];
   };
 }
