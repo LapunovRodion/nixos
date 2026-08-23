@@ -1073,11 +1073,25 @@ in
     viAlias = true;
     vimAlias = true;
 
-    # тема в тон noctalia (Catppuccin)
-    colorschemes.catppuccin = {
-      enable = true;
-      settings.flavour = "mocha";
-    };
+    # ---- Тема: не «в тон noctalia», а ИЗ noctalia ----
+    #
+    # Фиксированной темы здесь нет намеренно. Шаблон community/neovim уже
+    # включён (см. noctalia.nix, community_ids) и на каждую смену палитры
+    # рендерит ~/.config/nvim/lua/matugen.lua — готовый вызов
+    # base16-colorscheme с цветами, выведенными из обоев. Его и подключаем
+    # в extraConfigLua ниже. Это ровно та же линия, что у bat (theme =
+    # "ansi") и fzf (--color=16): цвет ровно один на всю машину, и берётся
+    # он из картинки на рабочем столе.
+    #
+    # Заодно уходит Catppuccin, который тут был: его модуль в nixvim
+    # принудительно выставлял $BAT_THEME = 'catppuccin', перебивая
+    # programs.bat внутри telescope-превью.
+    #
+    # base16-nvim подключается сырым плагином, а не через
+    # colorschemes.base16: тот сам выберет и применит одну из готовых
+    # base16-палитр, а нам нужно, чтобы setup вызывал сгенерированный файл
+    # со своими цветами.
+    extraPlugins = [ pkgs.vimPlugins.base16-nvim ];
 
     # базовые опции редактора
     opts = {
@@ -1128,6 +1142,43 @@ in
         };
       };
     };
+
+    extraConfigLua = ''
+      -- ---- Палитра из noctalia ----
+      --
+      -- Файл ~/.config/nvim/lua/matugen.lua лежит ВНЕ home-manager: его
+      -- пишет noctalia при каждой смене обоев. pcall потому, что на свежей
+      -- машине его ещё нет — до первого рендера темы; тогда остаётся
+      -- заводская схема neovim, и это не повод падать при старте.
+      --
+      -- Строка `pcall(require, 'matugen')` ниже записана ДОСЛОВНО не
+      -- случайно. post_hook шаблона (apply.sh) не находит lazy.nvim, идёт
+      -- во вторую ветку и пытается дописать ровно такой вызов в init.lua —
+      -- а тот у нас read-only симлинк в /nix/store. Дописать не выйдет,
+      -- скрипт стоит на `set -e` и падает, не дойдя до последней своей
+      -- строки `pkill -SIGUSR1 nvim`, то есть открытые редакторы не
+      -- перекрашиваются. Но перед записью apply.sh делает
+      -- `grep -qF "pcall(require, 'matugen')" init.lua` — и, найдя эту
+      -- строку, дозапись пропускает и доходит до pkill. Менять кавычки или
+      -- пробел в этом фрагменте нельзя, grep точный.
+      --
+      -- setup обёрнут во ВТОРОЙ pcall, и это не перестраховка: файл
+      -- генерируется чужим шаблоном, и любая ошибка внутри него оборвала бы
+      -- главный кусок init.lua целиком — вместе со всей настройкой LSP,
+      -- которая идёт ниже. Цвета того не стоят, поэтому о поломке
+      -- сообщаем и работаем дальше.
+      local ok, matugen = pcall(require, 'matugen')
+      if ok then
+        local applied, err = pcall(matugen.setup)
+        if not applied then
+          vim.notify("noctalia: не удалось применить тему — " .. tostring(err), vim.log.levels.WARN)
+        end
+      end
+
+      -- Тот же SIGUSR1 ловит и сам matugen.lua, перечитывая себя. Здесь
+      -- ничего дублировать не нужно.
+
+    '';
 
     # горячие клавиши
     keymaps = [
