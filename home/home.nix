@@ -1110,6 +1110,76 @@ in
 
     globals.mapleader = " ";   # leader = пробел
 
+    # Системный буфер обмена вместо безымянного регистра: y/p работают с тем
+    # же wl-copy, что и остальной wayland-десктоп. Провайдер объявлен явно,
+    # иначе nixvim ищет xclip/xsel и в чистом wayland-сеансе не находит.
+    # Сам wl-clipboard уже в systemPackages (modules/common.nix).
+    clipboard = {
+      register = "unnamedplus";
+      providers.wl-copy.enable = true;
+    };
+
+    # Диагностика: сортировка по важности (ошибка выигрывает у подсказки на
+    # той же строке) и рамка у всплывающего окна — в тон остальным окнам LSP.
+    diagnostic.settings = {
+      virtual_text = true;
+      severity_sort = true;
+      float.border = "rounded";
+    };
+
+    # ---- LSP: общее для ВСЕХ серверов ----
+    #
+    # Это новый модуль nixvim (`lsp.*`, поверх vim.lsp), а не legacy
+    # `plugins.lsp.*` ниже. Разделение осознанное:
+    #   * серверы остаются в legacy-модуле — он сам подмешивает им
+    #     capabilities от nvim-cmp, и переписывать рабочее незачем;
+    #   * а keymaps нужны ИМЕННО отсюда: они вешаются на событие LspAttach и
+    #     потому срабатывают и для roslyn, которого поднимает не nixvim, а
+    #     плагин roslyn.nvim. Кеймапы legacy-модуля до него не дотянулись бы.
+    lsp = {
+      # Подсказки типов и имён параметров прямо в тексте. Для C# это половина
+      # смысла LSP: var и целевые типы иначе просто не видно.
+      inlayHints.enable = true;
+
+      # Те самые capabilities для серверов мимо legacy-модуля (roslyn).
+      # Без них cmp не получит от сервера ни сниппетов, ни дорезолвки
+      # документации. `*` — псевдосервер vim.lsp.config с общими значениями.
+      servers."*".config.capabilities.__raw =
+        "require('cmp_nvim_lsp').default_capabilities()";
+
+      # Все клавиши пишутся ЛАТИНИЦЕЙ — в русской раскладке их подхватит
+      # langmap выше (gd = пв, K = Л и так далее). См. комментарий к langmap.
+      keymaps = [
+        { key = "gd"; lspBufAction = "definition";      options.desc = "К определению"; }
+        { key = "gD"; lspBufAction = "declaration";     options.desc = "К объявлению"; }
+        { key = "gi"; lspBufAction = "implementation";  options.desc = "К реализации"; }
+        { key = "gt"; lspBufAction = "type_definition"; options.desc = "К определению типа"; }
+        { key = "gr"; action = "<cmd>Telescope lsp_references<cr>"; options.desc = "Использования"; }
+        { key = "K";  lspBufAction = "hover";           options.desc = "Документация"; }
+
+        { key = "<leader>rn"; lspBufAction = "rename";      options.desc = "Переименовать"; }
+        { key = "<leader>ca"; lspBufAction = "code_action"; options.desc = "Действия с кодом"; }
+        {
+          key = "<leader>cf";
+          action = "<cmd>lua require('conform').format({ lsp_format = 'fallback' })<cr>";
+          options.desc = "Форматировать файл";
+        }
+
+        # vim.diagnostic.goto_next/goto_prev выпилены в neovim 0.11,
+        # актуальный интерфейс — jump({ count = ... }).
+        {
+          key = "[d";
+          action.__raw = "function() vim.diagnostic.jump({ count = -1, float = true }) end";
+          options.desc = "Предыдущая диагностика";
+        }
+        {
+          key = "]d";
+          action.__raw = "function() vim.diagnostic.jump({ count = 1, float = true }) end";
+          options.desc = "Следующая диагностика";
+        }
+      ];
+    };
+
     plugins = {
       web-devicons.enable = true;   # иконки для дерева/telescope
       telescope.enable = true;      # быстрый поиск файлов/по содержимому
@@ -1132,17 +1202,91 @@ in
         ];
       };
 
-      # LSP: подсветка ошибок + автодополнение по языкам
+      # Форматирование одним фронтендом на все языки. lsp_format = fallback:
+      # если для типа файла форматтер не задан, работает сам языковой сервер.
+      conform-nvim = {
+        enable = true;
+        settings = {
+          formatters_by_ft = {
+            cs = [ "csharpier" ];
+            nix = [ "nixfmt" ];
+            lua = [ "stylua" ];
+            sh = [ "shfmt" ];
+            # Только лишние пустые строки в конце файла. trim_whitespace сюда
+            # намеренно НЕ добавлен: в markdown два пробела на конце строки —
+            # это перенос, и стричь их молча при сохранении нельзя.
+            "_" = [ "trim_newlines" ];
+          };
+          format_on_save = {
+            lsp_format = "fallback";
+            # csharpier — обычное .NET-приложение, первый запуск в сессии
+            # уходит на прогрев рантайма; заводских 500 мс ему не хватает.
+            timeout_ms = 3000;
+          };
+        };
+      };
+
+      # LSP: подсветка ошибок + автодополнение по языкам.
+      # Здесь именно legacy-модуль (`plugins.lsp`), он раздаёт своим серверам
+      # capabilities от cmp. Кеймапы — выше, в `lsp.keymaps`.
       lsp = {
         enable = true;
         servers = {
           nixd.enable = true;      # nix
           lua_ls.enable = true;    # lua
           bashls.enable = true;    # bash
+          texlab.enable = true;    # latex — в mymathlib на вход идут .tex с формулами
+        };
+      };
+
+      # ---- C# ----
+      #
+      # roslyn.nvim — обвязка над настоящим Roslyn LS от Microsoft (тем же,
+      # что стоит за C# Dev Kit в VS Code). Пакет roslyn-ls плагин тянет в
+      # PATH neovim сам, объявлять его в extraPackages не нужно.
+      #
+      # ВАЖНО: одновременно с ним нельзя включать `lsp.servers.roslyn_ls` —
+      # на буфер сядут два одинаковых клиента, nixvim про это предупредит.
+      #
+      # ВАЖНО-2: roslyn-ls в nixpkgs собран с useDotnetFromEnv, то есть SDK
+      # он берёт ИЗ PATH, а не носит с собой. В mymathlib .NET живёт только в
+      # devShell флейка — отсюда плагин direnv ниже, без него сервер
+      # поднимется, но solution не загрузит.
+      roslyn = {
+        enable = true;
+        settings = {
+          broad_search = true;  # ищет .sln выше каталога открытого файла
+          lock_target = true;   # не перепрыгивает между решениями по ходу работы
+          silent = true;
+        };
+      };
+
+      # Обвязки вроде easy-dotnet.nvim здесь сознательно НЕТ. Она выглядит
+      # уместной, но каждая её команда ходит по RPC в отдельный сервер
+      # dotnet-easydotnet — .NET global tool, которого нет в nixpkgs; плагин
+      # доставляет его сам, императивно, в ~/.dotnet/tools. Один бинарь вне
+      # /nix/store и вне git ради трёх команд — размен неудачный, тем более
+      # что заводскими настройками она поднимает ещё и свой Roslyn поверх
+      # roslyn.nvim. Вместо неё — dotnet напрямую, см. extraConfigLua ниже.
+
+      # direnv внутри редактора: nvim, запущенный не из подготовленного
+      # шелла, всё равно увидит окружение из .envrc проекта. Ради этого всё
+      # и затевалось — см. комментарий к roslyn выше.
+      direnv = {
+        enable = true;
+        settings = {
+          auto = 1;
+          silent_load = 1;  # иначе каждое переключение буфера пишет в :messages
         };
       };
     };
 
+    # ---- .NET без плагина-обвязки ----
+    #
+    # dotnet запускается в терминальном сплите, цель ищется вверх по дереву
+    # от ОТКРЫТОГО ФАЙЛА, а не от текущего каталога neovim: иначе команды
+    # ломаются ровно тогда, когда редактор открыт из корня репозитория, а
+    # правится файл где-то в src/.
     extraConfigLua = ''
       -- ---- Палитра из noctalia ----
       --
@@ -1178,7 +1322,58 @@ in
       -- Тот же SIGUSR1 ловит и сам matugen.lua, перечитывая себя. Здесь
       -- ничего дублировать не нужно.
 
+      local function dotnet_term(cmd)
+        vim.cmd("botright 15split")
+        vim.cmd("terminal " .. cmd)
+        vim.cmd("startinsert")
+      end
+
+      local function nearest(pattern)
+        local from = vim.fs.dirname(vim.api.nvim_buf_get_name(0))
+        if from == nil or from == "" then
+          from = vim.fn.getcwd()
+        end
+        return vim.fs.find(function(name)
+          return name:match(pattern) ~= nil
+        end, { upward = true, path = from, type = "file" })[1]
+      end
+
+      -- Решение целиком, если оно есть: `dotnet build` по .sln собирает и
+      -- библиотеку, и тесты разом. Одиночный .csproj — запасной вариант для
+      -- проектов без решения.
+      local function solution_or_project()
+        return nearest("%.sln$") or nearest("%.slnx$") or nearest("%.csproj$")
+      end
+
+      _G.nixvim_dotnet = {
+        build = function()
+          local t = solution_or_project()
+          if t then dotnet_term("dotnet build " .. vim.fn.shellescape(t)) end
+        end,
+        test = function()
+          local t = solution_or_project()
+          if t then dotnet_term("dotnet test " .. vim.fn.shellescape(t)) end
+        end,
+        restore = function()
+          local t = solution_or_project()
+          if t then dotnet_term("dotnet restore " .. vim.fn.shellescape(t)) end
+        end,
+        -- run умеет только проект: по решению dotnet не знает, что запускать.
+        run = function()
+          local t = nearest("%.csproj$")
+          if t then dotnet_term("dotnet run --project " .. vim.fn.shellescape(t)) end
+        end,
+      }
     '';
+
+    # Форматтеры для conform выше. Языковые серверы сюда НЕ добавляются:
+    # их пакеты nixvim подставляет сам по plugins.lsp.servers.*.
+    extraPackages = with pkgs; [
+      csharpier
+      nixfmt
+      stylua
+      shfmt
+    ];
 
     # горячие клавиши
     keymaps = [
