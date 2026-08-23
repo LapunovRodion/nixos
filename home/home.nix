@@ -13,6 +13,28 @@ let
   # Путь именно в РЕПОЗИТОРИЙ, а не в /nix/store: скрипт должен иметь право
   # в него писать, а fish — читать оттуда напрямую.
   abbrsFile = "${config.home.homeDirectory}/nixos/home/fish/abbrs.fish";
+
+  # ---- зеркальные биндинги yazi ----
+  #
+  # Штатные бинды yazi (их около сотни) лежат отдельным сгенерированным
+  # файлом, свои — зеркалятся функцией ниже прямо на месте, в keymap.
+  yaziRu = import ./yazi-keymap-ru.nix;
+
+  # Каждой записи keymap подставляет кириллическую клавишу, оставляя run и
+  # desc. Записи, где переводить нечего (<C-y>, <Esc>), выбрасываются:
+  # дубликат один в один только замусорил бы справку.
+  yaziMirror =
+    let
+      swap =
+        e:
+        let
+          keys = if builtins.isList e.on then e.on else [ e.on ];
+          ru = map (k: kbd.mirrorMap.${k} or k) keys;
+        in
+        if ru == keys then null
+        else e // { on = if builtins.isList e.on then ru else builtins.head ru; };
+    in
+    entries: lib.filter (e: e != null) (map swap entries);
 in
 {
   imports = [
@@ -365,79 +387,98 @@ in
       ];
     };
 
-    keymap.mgr.prepend_keymap = [
-      {
-        on = "M";
-        run = "plugin mount";
-        desc = "Диски: смонтировать / отмонтировать";
-      }
+    keymap = {
+      # Свои бинды и их зеркала идут ПЕРЕД зеркалами штатных: в prepend_keymap
+      # выигрывает первое совпадение, а переопределения ниже (l → smart-enter,
+      # p → smart-paste, f → jump-to-char) должны победить и в русской
+      # раскладке тоже, а не откатиться к заводскому поведению yazi.
+      mgr.prepend_keymap =
+        let
+          own = [
+          {
+            on = "M";
+            run = "plugin mount";
+            desc = "Диски: смонтировать / отмонтировать";
+          }
 
-      # l вместо штатного enter: на каталоге — войти, на файле — открыть.
-      {
-        on = "l";
-        run = "plugin smart-enter";
-        desc = "Войти в каталог или открыть файл";
-      }
+          # l вместо штатного enter: на каталоге — войти, на файле — открыть.
+          {
+            on = "l";
+            run = "plugin smart-enter";
+            desc = "Войти в каталог или открыть файл";
+          }
 
-      # f перехвачен у штатного `filter --smart` и отдан прыжку по символу,
-      # а фильтр переехал на F — в варианте smart-filter он всё равно лучше:
-      # не выходит из ввода и сам проваливается в единственный подошедший каталог.
-      {
-        on = "f";
-        run = "plugin jump-to-char";
-        desc = "Прыгнуть к файлу на символ";
-      }
-      {
-        on = "F";
-        run = "plugin smart-filter";
-        desc = "Умный фильтр";
-      }
+          # f перехвачен у штатного `filter --smart` и отдан прыжку по символу,
+          # а фильтр переехал на F — в варианте smart-filter он всё равно лучше:
+          # не выходит из ввода и сам проваливается в единственный подошедший каталог.
+          {
+            on = "f";
+            run = "plugin jump-to-char";
+            desc = "Прыгнуть к файлу на символ";
+          }
+          {
+            on = "F";
+            run = "plugin smart-filter";
+            desc = "Умный фильтр";
+          }
 
-      # p вместо штатного paste: кладёт в каталог под курсором, а не в текущий.
-      {
-        on = "p";
-        run = "plugin smart-paste";
-        desc = "Вставить в каталог под курсором";
-      }
+          # p вместо штатного paste: кладёт в каталог под курсором, а не в текущий.
+          {
+            on = "p";
+            run = "plugin smart-paste";
+            desc = "Вставить в каталог под курсором";
+          }
 
-      {
-        on = [ "c" "m" ];
-        run = "plugin chmod";
-        desc = "chmod на выделенных";
-      }
+          {
+            on = [ "c" "m" ];
+            run = "plugin chmod";
+            desc = "chmod на выделенных";
+          }
 
-      # Не <C-d>, как советует README плагина: там штатный «полстраницы вниз».
-      {
-        on = "<C-y>";
-        run = "plugin diff";
-        desc = "Diff выделенного с файлом под курсором";
-      }
+          # Не <C-d>, как советует README плагина: там штатный «полстраницы вниз».
+          {
+            on = "<C-y>";
+            run = "plugin diff";
+            desc = "Diff выделенного с файлом под курсором";
+          }
 
-      {
-        on = "T";
-        run = "plugin toggle-pane max-preview";
-        desc = "Развернуть / свернуть превью";
-      }
+          {
+            on = "T";
+            run = "plugin toggle-pane max-preview";
+            desc = "Развернуть / свернуть превью";
+          }
 
-      # Не +/-, как советует README: `-` занят штатным symlink.
-      # Пара +/= выбрана как соседние клавиши (+ это Shift+=).
-      {
-        on = "+";
-        run = "plugin zoom 1";
-        desc = "Приблизить превью";
-      }
-      {
-        on = "=";
-        run = "plugin zoom -1";
-        desc = "Отдалить превью";
-      }
+          # Не +/-, как советует README: `-` занят штатным symlink.
+          # Пара +/= выбрана как соседние клавиши (+ это Shift+=).
+          {
+            on = "+";
+            run = "plugin zoom 1";
+            desc = "Приблизить превью";
+          }
+          {
+            on = "=";
+            run = "plugin zoom -1";
+            desc = "Отдалить превью";
+          }
 
-      {
-        on = "C";
-        run = "plugin ouch";
-        desc = "Упаковать в архив";
-      }
-    ];
+          {
+            on = "C";
+            run = "plugin ouch";
+            desc = "Упаковать в архив";
+          }
+        ];
+        in
+        own ++ yaziMirror own ++ yaziRu.mgr;
+
+      # Остальные режимы своих биндов не имеют — только зеркала штатных.
+      # input и cmp сознательно не зеркалятся: там набирают текст, и подмена
+      # кириллицы на латиницу сломала бы ввод (см. home/yazi-keymap-ru.nix).
+      tasks.prepend_keymap = yaziRu.tasks;
+      spot.prepend_keymap = yaziRu.spot;
+      pick.prepend_keymap = yaziRu.pick;
+      confirm.prepend_keymap = yaziRu.confirm;
+      help.prepend_keymap = yaziRu.help;
+    };
   };
 
   # --- ls -> eza, с иконками и статусом git прямо в листинге ---
