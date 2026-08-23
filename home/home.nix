@@ -1,4 +1,4 @@
-{ inputs, lib, pkgs, osConfig, ... }:
+{ config, inputs, lib, pkgs, osConfig, ... }:
 # osConfig — конфиг СИСТЕМЫ. Доступен потому, что home-manager подключён
 # модулем NixOS; через него читаются опции local.* (см. modules/options.nix),
 # то есть всё, чем ноут отличается от десктопа.
@@ -8,6 +8,11 @@ let
   # биндинги yazi, клавиши после префикса в tmux. Хоткеи с Ctrl/Alt/Super
   # к этой таблице отношения не имеют — их чинит раскладка из home/xkb.
   kbd = import ./keyboard-ru.nix { inherit lib; };
+
+  # Файл с сокращениями, которые добавляются на ходу (mkabbr/rmabbr ниже).
+  # Путь именно в РЕПОЗИТОРИЙ, а не в /nix/store: скрипт должен иметь право
+  # в него писать, а fish — читать оттуда напрямую.
+  abbrsFile = "${config.home.homeDirectory}/nixos/home/fish/abbrs.fish";
 in
 {
   imports = [
@@ -54,6 +59,15 @@ in
   # =============================================================
   xdg.configFile."xkb/types/custom".source = ./xkb/types-custom;
   xdg.configFile."xkb/symbols/ru-latin".source = ./xkb/symbols-ru-latin;
+
+  # Сокращения, добавляемые на ходу (mkabbr). Единственный файл конфига,
+  # который НЕ уезжает в /nix/store: mkOutOfStoreSymlink делает симлинк прямо
+  # в репозиторий. Иначе он был бы read-only и дописать в него было бы нельзя,
+  # а каждое новое сокращение стоило бы nixos-rebuild.
+  #
+  # conf.d, а не config.fish: последний целиком занят home-manager.
+  xdg.configFile."fish/conf.d/abbrs.fish".source =
+    config.lib.file.mkOutOfStoreSymlink abbrsFile;
 
   # wayvnc — конфиг VNC-сервера, null на машинах без него (см. modules/options.nix).
   xdg.configFile."wayvnc/config" = lib.mkIf (osConfig.local.wayvncConfig != null) {
@@ -188,10 +202,83 @@ in
       set -g fish_greeting ""
     '';
     # мелкие удобные абревиатуры; расширю позже
+    #
+    # Это «обдуманные» сокращения, они правятся руками и переживают всё.
+    # То, что набрасывается на ходу, живёт в home/fish/abbrs.fish и
+    # добавляется командой mkabbr — см. functions ниже.
     shellAbbrs = {
       gs = "git status";
       gc = "git commit";
       lg = "lazygit";
+    };
+
+    functions = {
+      # mkabbr <имя> <команда...> — добавить сокращение, не открывая редактор.
+      #
+      # Пишет строку в home/fish/abbrs.fish (он в git) И тут же включает
+      # сокращение в текущем шелле. Пересборка не нужна вообще: файл подключён
+      # симлинком наружу store, поэтому новые терминалы подхватят его сами.
+      mkabbr = {
+        description = "Добавить сокращение в home/fish/abbrs.fish";
+        body = ''
+          set -l file ${abbrsFile}
+
+          if test (count $argv) -lt 2
+              echo "mkabbr <имя> <команда...>" >&2
+              echo "напр.: mkabbr nrs sudo nixos-rebuild switch --flake ~/nixos#desktop" >&2
+              return 1
+          end
+
+          set -l name $argv[1]
+          # Хвост склеивается пробелами, поэтому кавычки вокруг команды
+          # необязательны: mkabbr gcm git commit -m — сработает как надо.
+          set -l expansion (string join -- ' ' $argv[2..-1])
+
+          if abbr --query -- $name
+              echo "mkabbr: сокращение $name уже занято:" >&2
+              abbr --show | string match -- "*-- $name *" >&2
+              return 1
+          end
+
+          if not test -w $file
+              echo "mkabbr: не могу писать в $file" >&2
+              return 1
+          end
+
+          # string escape — чтобы пробелы и кавычки в команде пережили
+          # запись в файл и его последующий source.
+          echo "abbr -a -- $name "(string escape -- $expansion) >> $file
+          abbr -a -- $name $expansion
+          echo "добавлено: $name → $expansion"
+        '';
+      };
+
+      # rmabbr <имя> — убрать то, что добавлено через mkabbr.
+      rmabbr = {
+        description = "Убрать сокращение из home/fish/abbrs.fish";
+        body = ''
+          set -l file ${abbrsFile}
+
+          if test (count $argv) -ne 1
+              echo "rmabbr <имя>" >&2
+              return 1
+          end
+
+          set -l name $argv[1]
+          set -l lines (cat $file)
+          set -l kept (string match -v -r -- "^abbr -a -- "(string escape --style=regex -- $name)"( |\$)" $lines)
+
+          if test (count $kept) -eq (count $lines)
+              echo "rmabbr: $name нет в $file" >&2
+              echo "если он из shellAbbrs — правь home/home.nix и пересобирай" >&2
+              return 1
+          end
+
+          printf '%s\n' $kept > $file
+          abbr --erase -- $name
+          echo "убрано: $name"
+        '';
+      };
     };
   };
 
