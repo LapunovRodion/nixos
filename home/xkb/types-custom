@@ -1,0 +1,52 @@
+// Тип клавиши, из-за которого хоткеи перестают зависеть от раскладки.
+//
+// Идея: пока держишь Ctrl / Alt / Super, клавиша отдаёт не кириллический
+// кейсим, а латинский — он лежит на 3-4 уровне (см. symbols/ru-latin).
+// Приложение получает ровно Ctrl+a вместо Ctrl+ф и срабатывает как надо.
+//
+// preserve[] здесь ОБЯЗАТЕЛЕН. Модификатор, участвующий в выборе уровня,
+// по умолчанию считается «съеденным»: xkb_state_mod_index_is_consumed()
+// вернёт true, и GTK/Qt увидят голую `a` без Control. preserve возвращает
+// модификатор в событие. Приём не самодельный — так же сделаны штатные
+// типы numpad(mac) и PC_CONTROL_LEVEL2 в xkeyboard-config.
+//
+// Файл кладётся в ~/.config/xkb/types/custom (см. home/home.nix) и
+// подключается опцией `custom:types` в home/niri/config.kdl. Опция штатная,
+// она есть в rules/evdev самого xkeyboard-config.
+
+default partial xkb_types "custom" {
+
+    virtual_modifiers Alt, Super;
+
+    type "LATIN_FALLBACK" {
+        modifiers = Shift + Control + Alt + Super;
+
+        // Обычный набор текста: кириллица, как и была.
+        map[None]  = Level1;
+        map[Shift] = Level2;
+
+        // Любое сочетание Ctrl/Alt/Super — латиница. Перечислены все семь
+        // непустых комбинаций: xkb не умеет «любой из», нужна явная таблица.
+        map[Control]           = Level3;  preserve[Control]           = Control;
+        map[Alt]               = Level3;  preserve[Alt]               = Alt;
+        map[Super]             = Level3;  preserve[Super]             = Super;
+        map[Control+Alt]       = Level3;  preserve[Control+Alt]       = Control+Alt;
+        map[Control+Super]     = Level3;  preserve[Control+Super]     = Control+Super;
+        map[Alt+Super]         = Level3;  preserve[Alt+Super]         = Alt+Super;
+        map[Control+Alt+Super] = Level3;  preserve[Control+Alt+Super] = Control+Alt+Super;
+
+        // То же с Shift — заглавная латиница (Ctrl+Shift+C и подобное).
+        map[Shift+Control]           = Level4;  preserve[Shift+Control]           = Shift+Control;
+        map[Shift+Alt]               = Level4;  preserve[Shift+Alt]               = Shift+Alt;
+        map[Shift+Super]             = Level4;  preserve[Shift+Super]             = Shift+Super;
+        map[Shift+Control+Alt]       = Level4;  preserve[Shift+Control+Alt]       = Shift+Control+Alt;
+        map[Shift+Control+Super]     = Level4;  preserve[Shift+Control+Super]     = Shift+Control+Super;
+        map[Shift+Alt+Super]         = Level4;  preserve[Shift+Alt+Super]         = Shift+Alt+Super;
+        map[Shift+Control+Alt+Super] = Level4;  preserve[Shift+Control+Alt+Super] = Shift+Control+Alt+Super;
+
+        level_name[Level1] = "Base";
+        level_name[Level2] = "Shift";
+        level_name[Level3] = "Latin";
+        level_name[Level4] = "Shift Latin";
+    };
+};

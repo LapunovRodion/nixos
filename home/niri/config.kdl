@@ -12,8 +12,16 @@ input {
             // You can set rules, model, layout, variant and options.
             // For more information, see xkeyboard-config(7).
 
-            layout "us,ru"
-            options "grp:caps_toggle"
+            // ru-latin вместо ru — своя раскладка из ~/.config/xkb/symbols
+            // (файл home/xkb/symbols-ru-latin). Кириллица там та же самая,
+            // но на 3-4 уровнях лежит латиница, и хоткеи с Ctrl/Alt/Super
+            // работают в русской группе так же, как в английской.
+            //
+            // custom:types — штатная опция xkeyboard-config, подключающая
+            // ~/.config/xkb/types/custom. Без неё тип LATIN_FALLBACK не
+            // найдётся и раскладка не соберётся.
+            layout "us,ru-latin"
+            options "grp:caps_toggle,custom:types"
 
             // If this section is empty, niri will fetch xkb settings
             // from org.freedesktop.locale1. You can control these using

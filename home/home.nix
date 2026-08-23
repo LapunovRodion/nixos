@@ -29,6 +29,25 @@
   # hosts/<машина>/outputs.kdl и подключается строкой include в config.kdl.
   xdg.configFile."niri/outputs.kdl".source = osConfig.local.niriOutputs;
 
+  # =============================================================
+  # Раскладка, в которой хоткеи не зависят от языка.
+  #
+  # Проблема: в кириллической группе Ctrl+ф — это Ctrl+Cyrillic_ef, и
+  # приложение такой хоткей не узнаёт. Свои бинды niri переживает (он ищет
+  # латинский кейсим по всем группам), а вот GTK/Qt/Electron, префикс tmux
+  # и биндинги fish/readline ломаются все разом.
+  #
+  # Решение: своя раскладка ru-latin, где на 3-4 уровнях лежит латиница, и
+  # свой тип клавиши, включающий эти уровни по Ctrl/Alt/Super. Подробности —
+  # в комментариях внутри самих файлов.
+  #
+  # Пересобирать системный xkeyboard-config не нужно: libxkbcommon
+  # просматривает ~/.config/xkb ПЕРВЫМ, а тип подключается штатной опцией
+  # custom:types (см. options в niri/config.kdl).
+  # =============================================================
+  xdg.configFile."xkb/types/custom".source = ./xkb/types-custom;
+  xdg.configFile."xkb/symbols/ru-latin".source = ./xkb/symbols-ru-latin;
+
   # wayvnc — конфиг VNC-сервера, null на машинах без него (см. modules/options.nix).
   xdg.configFile."wayvnc/config" = lib.mkIf (osConfig.local.wayvncConfig != null) {
     source = osConfig.local.wayvncConfig;
