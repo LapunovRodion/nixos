@@ -113,7 +113,17 @@ in
           # держит тему в tdata и файл с диска не перечитывает — импорт руками,
           # через Настройки → Чаты → ⋮ → Создать тему → Импортировать.
           # Значит и при смене палитры (source = "wallpaper") импорт надо повторять.
-          community_ids = [ "zen-browser" "neovim" "obsidian" "fuzzel" "lazygit" "yazi" "telegram" ];
+          #
+          # "neovim" УБРАН намеренно, и это не уборка, а необходимость. Тема
+          # редактора теперь статичная (см. home.nix, colorschemes.catppuccin),
+          # то есть строки `pcall(require, 'matugen')` в init.lua больше нет.
+          # А apply.sh этого шаблона, не найдя lazy.nvim, идёт во вторую ветку,
+          # грепает init.lua ровно на эту строку и, не найдя её, дописывает
+          # вызов сам — в read-only симлинк на /nix/store. Запись падает,
+          # скрипт стоит на `set -euo pipefail`, и post_hook валится на каждой
+          # смене обоев. Держать шаблон включённым можно только вместе с той
+          # строкой; раз строки нет — нет и шаблона.
+          community_ids = [ "zen-browser" "obsidian" "fuzzel" "lazygit" "yazi" "telegram" ];
 
           # Свой шаблон niri. input_path абсолютный (путь в /nix/store),
           # так что noctalia берёт его как есть — resolveConfigPath

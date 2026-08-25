@@ -1073,25 +1073,41 @@ in
     viAlias = true;
     vimAlias = true;
 
-    # ---- Тема: не «в тон noctalia», а ИЗ noctalia ----
+    # ---- Тема: статичный синтаксис, фон от noctalia ----
     #
-    # Фиксированной темы здесь нет намеренно. Шаблон community/neovim уже
-    # включён (см. noctalia.nix, community_ids) и на каждую смену палитры
-    # рендерит ~/.config/nvim/lua/matugen.lua — готовый вызов
-    # base16-colorscheme с цветами, выведенными из обоев. Его и подключаем
-    # в extraConfigLua ниже. Это ровно та же линия, что у bat (theme =
-    # "ansi") и fzf (--color=16): цвет ровно один на всю машину, и берётся
-    # он из картинки на рабочем столе.
+    # Раньше цвет редактора выводился из обоев: шаблон community/neovim
+    # рендерил ~/.config/nvim/lua/matugen.lua с вызовом base16-colorscheme,
+    # и это была та же линия, что у bat (theme = "ansi") и fzf (--color=16).
+    # Не сработало, и причина структурная. В base16 восемь акцентных слотов,
+    # а в Material You акцентных ролей четыре — primary, secondary, tertiary,
+    # error. Остальные четыре слота шаблон брал из *_fixed_dim-вариантов,
+    # которые в Material You совпадают с базовым цветом до хекса: base0D
+    # (функции) = base0B (строки), base0E (ключевые слова) = base0A (типы).
+    # Восемь слотов схлопывались в четыре цвета, а из этих четырёх primary
+    # и secondary отличались на 3 единицы RGB. В итоге ключевые слова, типы,
+    # функции и строки красились одним синим — на C# это видно особенно
+    # хорошо. Развести дубли было бы мало: Material You выводит всю палитру
+    # из одного цвета обоев, потолок здесь — три различимых акцента.
     #
-    # Заодно уходит Catppuccin, который тут был: его модуль в nixvim
-    # принудительно выставлял $BAT_THEME = 'catppuccin', перебивая
-    # programs.bat внутри telescope-превью.
+    # Поэтому синтаксис фиксируем, а связь с обоями сохраняем через фон:
+    # transparent_background отдаёт фон терминалу, а kitty noctalia красит
+    # по-прежнему (см. programs.kitty ниже). Общий тон едет за картинкой,
+    # читаемость кода от неё больше не зависит, и шва в паддингах kitty нет.
     #
-    # base16-nvim подключается сырым плагином, а не через
-    # colorschemes.base16: тот сам выберет и применит одну из готовых
-    # base16-палитр, а нам нужно, чтобы setup вызывал сгенерированный файл
-    # со своими цветами.
-    extraPlugins = [ pkgs.vimPlugins.base16-nvim ];
+    # integrations не перечисляем: default_integrations в модуле по умолчанию
+    # true, и cmp, telescope, gitsigns, nvimtree, treesitter, which-key,
+    # trouble, indent-blankline, lualine подхватываются сами.
+    #
+    # ВАЖНО: вместе с любым colorschemes.* нужен telescope.highlightTheme =
+    # null, иначе вернётся старая беда с $BAT_THEME — см. блок telescope ниже.
+    colorschemes.catppuccin = {
+      enable = true;
+      settings = {
+        flavour = "mocha";
+        transparent_background = true;
+        term_colors = true;
+      };
+    };
 
     # базовые опции редактора
     opts = {
@@ -1261,6 +1277,16 @@ in
 
       telescope = {
         enable = true;
+
+        # Гасим подсветку превью «под тему редактора». Опция highlightTheme
+        # в модуле nixvim объявлена как `default = config.colorscheme`, и при
+        # непустом значении модуль пишет в конфиг `let $BAT_THEME = '<схема>'`.
+        # Переменная перебивает programs.bat (theme = "ansi") ровно внутри
+        # telescope-превью — из-за этого Catppuccin отсюда когда-то и убрали.
+        # Пока colorschemes.* не был включён, значение выходило пустым само
+        # собой; теперь схема есть, поэтому гасим явно.
+        highlightTheme = null;
+
         # Нативный фильтр на C: на дереве исходников .NET разница с
         # ванильным lua-матчером заметна глазом.
         extensions.fzf-native.enable = true;
@@ -1419,40 +1445,6 @@ in
     # ломаются ровно тогда, когда редактор открыт из корня репозитория, а
     # правится файл где-то в src/.
     extraConfigLua = ''
-      -- ---- Палитра из noctalia ----
-      --
-      -- Файл ~/.config/nvim/lua/matugen.lua лежит ВНЕ home-manager: его
-      -- пишет noctalia при каждой смене обоев. pcall потому, что на свежей
-      -- машине его ещё нет — до первого рендера темы; тогда остаётся
-      -- заводская схема neovim, и это не повод падать при старте.
-      --
-      -- Строка `pcall(require, 'matugen')` ниже записана ДОСЛОВНО не
-      -- случайно. post_hook шаблона (apply.sh) не находит lazy.nvim, идёт
-      -- во вторую ветку и пытается дописать ровно такой вызов в init.lua —
-      -- а тот у нас read-only симлинк в /nix/store. Дописать не выйдет,
-      -- скрипт стоит на `set -e` и падает, не дойдя до последней своей
-      -- строки `pkill -SIGUSR1 nvim`, то есть открытые редакторы не
-      -- перекрашиваются. Но перед записью apply.sh делает
-      -- `grep -qF "pcall(require, 'matugen')" init.lua` — и, найдя эту
-      -- строку, дозапись пропускает и доходит до pkill. Менять кавычки или
-      -- пробел в этом фрагменте нельзя, grep точный.
-      --
-      -- setup обёрнут во ВТОРОЙ pcall, и это не перестраховка: файл
-      -- генерируется чужим шаблоном, и любая ошибка внутри него оборвала бы
-      -- главный кусок init.lua целиком — вместе со всей настройкой LSP,
-      -- которая идёт ниже. Цвета того не стоят, поэтому о поломке
-      -- сообщаем и работаем дальше.
-      local ok, matugen = pcall(require, 'matugen')
-      if ok then
-        local applied, err = pcall(matugen.setup)
-        if not applied then
-          vim.notify("noctalia: не удалось применить тему — " .. tostring(err), vim.log.levels.WARN)
-        end
-      end
-
-      -- Тот же SIGUSR1 ловит и сам matugen.lua, перечитывая себя. Здесь
-      -- ничего дублировать не нужно.
-
       local function dotnet_term(cmd)
         vim.cmd("botright 15split")
         vim.cmd("terminal " .. cmd)
