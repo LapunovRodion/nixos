@@ -94,7 +94,7 @@ let
   # Claude Desktop, целиком ходящий через hysteria (http-прокси на 3128).
   # Это Electron: сам бинарь запускается лаунчером по .desktop (Exec=claude-desktop,
   # резолвится через PATH), поэтому заворачиваем бинарь — обёртка подхватится сама.
-  # Chromium под niri (нет GNOME/KDE) берёт прокси из СТРОЧНЫХ http_proxy/https_proxy;
+  # Chromium под umbriel (нет GNOME/KDE) берёт прокси из СТРОЧНЫХ http_proxy/https_proxy;
   # дочерние node/MCP-процессы («ноды») — из привычных HTTP_PROXY/HTTPS_PROXY.
   # Задаём оба регистра → через VPN идёт и приложение, и его ноды («полностью»).
   # `default` — единственный пакет флейка (официальный .deb, уже самодостаточный
@@ -229,20 +229,36 @@ in
   };
 
   # ---------------------------------------------------------------
-  # 1. niri (compositor)
+  # 1. umbriel (compositor)
+  #
+  # Модуль из nixpkgs, не из апстримного flake композитора: тот
+  # отключает модуль nixpkgs (disabledModules) и подставляет пакет,
+  # собранный из исходников, — то есть мимо бинарного кэша, с полной
+  # сборкой C++23 и SceneFX на каждой машине.
+  #
+  # Модуль ставит пакет, регистрирует сессию в sessionPackages (чтобы её
+  # видел логин-менеджер) и подключает xdg-desktop-portal-umbriel —
+  # портал, без которого не работает скриншеринг в браузере.
+  #
+  # Сам конфиг композитора — в home/umbriel.nix.
   # ---------------------------------------------------------------
-  programs.niri.enable = true;
+  programs.umbriel.enable = true;
 
-  # Логин-менеджер: greetd + tuigreet, сразу в niri-сессию
+  # Логин-менеджер: greetd + tuigreet, сразу в сессию umbriel.
+  # start-umbriel — обёртка из пакета: под systemd она поднимает
+  # композитор user-сервисом, чтобы приложения наследовали environment.d.
   services.greetd = {
     enable = true;
     settings.default_session = {
-      command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd niri-session";
+      command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd ${pkgs.umbriel}/bin/start-umbriel";
       user = "greeter";
     };
   };
 
-  # Портал для скриншотов/скриншеринга
+  # Портал для скриншотов/скриншеринга. Свой портал umbriel добавляет
+  # модуль выше, здесь только gtk — он домерживается в тот же список и
+  # закрывает интерфейсы, которых у портала композитора нет (диалоги
+  # выбора файлов, настройки).
   xdg.portal = {
     enable = true;
     extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
@@ -302,13 +318,16 @@ in
     vim
     wget
     uv                    # python-тулчейн и раннер (uvx) для проектов
-    # niri окружение
+    # окружение композитора
     fuzzel               # лаунчер
     kitty                # терминал (единственный; вместо alacritty/rio)
-    xwayland-satellite   # X11-приложения
-    # Зеркалирование монитора. Своего дублирования выходов у niri нет:
-    # wl-mirror показывает содержимое одного выхода в окне, которое можно
-    # сразу развернуть на весь экран на другом мониторе.
+    # xwayland-satellite отдельно НЕ ставится: pkgs.umbriel уже обёрнут им
+    # (wrapProgram --prefix PATH в nixpkgs), а сам композитор запускает его
+    # при general.xwayland = true.
+    #
+    # Зеркалирование монитора. Своего дублирования выходов у umbriel, как
+    # и у niri, нет: wl-mirror показывает содержимое одного выхода в окне,
+    # которое можно сразу развернуть на весь экран на другом мониторе.
     #
     # Последний аргумент — ИСТОЧНИК, --fullscreen-output — ПРИЁМНИК:
     #   wl-mirror --fullscreen-output HDMI-A-2 HDMI-A-1   Acer → Samsung
@@ -317,9 +336,9 @@ in
     # Осторожно с -f: это --freeze (заморозить картинку), а НЕ fullscreen.
     # Полный экран без указания монитора — -F.
     #
-    # При запуске ругается «missing ext_image_copy_capture protocol»: этого
-    # протокола у niri нет, wl-mirror сам откатывается на screencopy-dmabuf
-    # и работает. Сообщение безобидное.
+    # При запуске может ругаться «missing ext_image_copy_capture protocol»:
+    # этого протокола у композитора нет, wl-mirror сам откатывается на
+    # wlr-screencopy и работает. Сообщение безобидное.
     wl-mirror
     # сеть
     hysteria
@@ -341,13 +360,13 @@ in
     obsidian
 
     # ---- Перенос по чеклисту [[04 - План переноса на NixOS]] ----
-    # Терминал: kitty — объявлен выше в блоке «niri окружение» как единственный.
+    # Терминал: kitty — объявлен выше в блоке «окружение композитора» как единственный.
     # Буфер обмена: история — ВСТРОЕННАЯ в noctalia (`panel-toggle clipboard`),
     # поэтому cliphist/wl-clip-persist не нужны. wl-clipboard оставлен ради
     # wl-copy/wl-paste в CLI и пайплайнах.
     wl-clipboard
     # Скриншоты снимает noctalia (`screenshot-region` / `screenshot-fullscreen`).
-    # Эти пакеты закрывают то, чего нет ни у неё, ни у niri: аннотации и видео.
+    # Эти пакеты закрывают то, чего нет ни у неё, ни у композитора: аннотации и видео.
     grim                 # захват в файл из CLI (для скриптов/пайплайнов)
     slurp                # выбор области мышью → координаты, в связке с grim
     satty                # редактор снимка: стрелки, текст, размытие
@@ -377,7 +396,7 @@ in
     # tmux — мультиплексор. Берётся ради того, что сессия переживает закрытие
     #   терминала: `tmux new -s work` → `Ctrl-b d` (отцепиться) → `tmux a`.
     #   Долгий rebuild или процесс на удалённой машине не умирают вместе с окном.
-    #   Разбивать экран на панели незачем — это делает niri.
+    #   Разбивать экран на панели незачем — это делает композитор.
     #   Здесь только пакет; конфиг (префикс Ctrl-a, vi-бинды, связка с
     #   wl-copy) — programs.tmux в home/home.nix. Та же схема, что у kitty.
     tmux
@@ -389,7 +408,7 @@ in
                     # а не в облако. Под свой Vaultwarden: `bw config server <url>`
                     # ОДИН РАЗ до логина (или Server URL в настройках плагина).
     python3         # хуки и MCP-шим плагина lowcache/claude-companion (stdlib, без pip)
-    playerctl       # «что играет»: шим claude-companion + медиа-бинды niri
+    playerctl       # «что играет»: шим claude-companion + медиа-бинды композитора
     evtest          # bongocat читает им нажатия клавиш; плюс группа `input` выше
 
     # ---- Видимость пакетов (чеклист [[04]], «Просмотр установленного») ----

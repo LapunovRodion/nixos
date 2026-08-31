@@ -31,7 +31,7 @@
       example = "eDP-1";
       description = ''
         Выход, на котором висят виджеты рабочего стола (часы, погода,
-        sysmon, орб). Имя — из `niri msg outputs`.
+        sysmon, орб). Имя — из `umbriel outputs`.
       '';
     };
 
@@ -89,13 +89,46 @@
       '';
     };
 
-    niriOutputs = lib.mkOption {
-      type = lib.types.path;
+    outputConfig = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.attrsOf lib.types.anything);
+      default = { };
+      example = {
+        "DP-1" = { mode = "1920x1080"; scale = 1.0; position = [ 0 0 ]; };
+      };
       description = ''
-        Файл с блоками output {} для niri. Кладётся в
-        ~/.config/niri/outputs.kdl, оттуда его подхватывает include
-        в config.kdl. Разрешения и раскладка мониторов — единственное,
-        что в конфиге композитора зависит от машины.
+        Таблица output для umbriel (см. home/umbriel.nix): ключ — имя
+        выхода из `umbriel outputs`, значение — его настройки (mode,
+        scale, position, transform, workspaces …).
+
+        ВАЖНО про scale: у umbriel он по умолчанию 1.0 и подбора по DPI
+        нет. Там, где niri сам ставил дробный масштаб, его теперь надо
+        задать явно, иначе интерфейс станет мельче в разы.
+
+        Пустая таблица — все выходы в родном режиме, масштаб 1,
+        расположение автоматическое слева направо.
+      '';
+    };
+
+    autostart = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [ "wl-mirror HDMI-A-1" ];
+      description = ''
+        Машинозависимые команды в general.autostart композитора: строки
+        идут через шелл и запускаются один раз после старта сессии.
+        Общесистемная автозагрузка сюда не относится — шелл (noctalia)
+        поднимается своим systemd-юнитом.
+      '';
+    };
+
+    windowRules = lib.mkOption {
+      type = lib.types.listOf lib.types.anything;
+      default = [ ];
+      description = ''
+        Машинозависимые правила окон: дописываются в конец общего списка
+        window_rule (см. home/umbriel.nix), поэтому перебивают его.
+        Нужны там, где правило ссылается на имя выхода, — а имена
+        выходов у машин разные.
       '';
     };
 

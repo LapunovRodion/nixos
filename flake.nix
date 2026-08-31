@@ -1,5 +1,5 @@
 {
-  description = "artur NixOS: laptop + desktop, niri + noctalia + hysteria + claude";
+  description = "artur NixOS: laptop + desktop, umbriel + noctalia + hysteria + claude";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -127,7 +127,7 @@
             # Когда HM забирает под себя файл, который до этого лежал в ~/.config
             # обычным файлом, активация падает: «existing file is in the way».
             # С этим ключом HM сам отодвигает его в <имя>.hm-bak и идёт дальше.
-            # Понадобилось при переносе niri/config.kdl в конфиг.
+            # Понадобилось при переносе конфига композитора в конфиг.
             home-manager.backupFileExtension = "hm-bak";
             home-manager.users.artur = import ./home/home.nix;
           }

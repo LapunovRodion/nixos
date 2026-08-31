@@ -71,7 +71,17 @@
     osdScale = 0.7;
     hasBattery = true;
     zenProfileDir = "vkvdhp86.Default Profile";
-    niriOutputs = ./outputs.kdl;
+
+    # Единственный выход — встроенная матрица. mode не задаётся: родной
+    # режим панели umbriel возьмёт сам.
+    #
+    # А вот scale задать ОБЯЗАТЕЛЬНО. niri подбирал дробный масштаб по DPI
+    # сам, и в прежнем outputs.kdl блок был пустой; у umbriel scale по
+    # умолчанию 1.0 и автоподбора нет (docs/user/outputs.md). Без этой
+    # строки 2880x1800 отдавались бы приложениям как есть и всё стало бы
+    # мельче почти вдвое. 1.75 — тот самый масштаб, что стоял у niri, из
+    # него же посчитан local.screen выше (2880/1.75 ≈ 1645).
+    outputConfig."eDP-1".scale = 1.75;
 
     # Окружение разработки (см. modules/dev.nix). Выставить в false и
     # сделать switch — podman и libvirt уйдут из системы.
