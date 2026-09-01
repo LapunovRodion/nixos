@@ -23,6 +23,25 @@
     pkgs.remmina
   ];
 
+  # Remmina при первом запуске кладёт себе в автозапуск апплет
+  # (~/.config/autostart/remmina-applet.desktop, Exec=remmina -i), и niri,
+  # который поддерживает xdg-desktop-autostart, честно поднимает его в трей
+  # при каждом входе. Нужен он там не был ни разу.
+  #
+  # Hidden=true по XDG-спеке означает «записи как будто нет» — сессия её
+  # пропускает. Пишем файл через home-manager, а не удаляем руками: он
+  # уезжает в /nix/store и подключается read-only симлинком, так что
+  # remmina не может создать его заново. Существующий обычный файл HM
+  # отодвинет в .hm-bak (backupFileExtension в flake.nix).
+  #
+  # Сам пакет остаётся, глушится только автозапуск.
+  home-manager.users.artur.xdg.configFile."autostart/remmina-applet.desktop".text = ''
+    [Desktop Entry]
+    Type=Application
+    Name=Remmina Applet
+    Hidden=true
+  '';
+
   # Первая установка была на 26.05 — значение не меняется никогда,
   # оно фиксирует семантику дефолтов, а не версию системы.
   system.stateVersion = "26.05";

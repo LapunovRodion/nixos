@@ -13,6 +13,135 @@ let
   # Основной моноширинный, тоже мимо nixpkgs — см. pkgs/lyth-mono.nix.
   lyth-mono = pkgs.callPackage ../pkgs/lyth-mono.nix { };
 
+  # ---------------------------------------------------------------
+  # Hysteria: список серверов и обвязка для переключения между ними
+  # (сами юниты — в блоке «3. Hysteria» ниже).
+  # ---------------------------------------------------------------
+  # Порядок = приоритет: поднимается первый живой. Каждый секрет —
+  # самодостаточный конфиг hysteria со своим http-прокси на 3128;
+  # одновременно работает ровно один клиент, поэтому порт у всех один
+  # и обёртки claude-* ничего не замечают при переключении.
+  hysteriaServers = [
+    { name = "main";    path = config.age.secrets.hysteria-client.path; }
+    { name = "pxy-hy2"; path = config.age.secrets.hysteria-client-2.path; }
+  ];
+  hysteriaProxy = "127.0.0.1:3128";
+  # Проверяем не «поднялся ли туннель», а достижимость того, ради чего он
+  # заведён. Любой HTTP-ответ = успех (на / прилетает 404): важен факт
+  # ответа, а не код.
+  hysteriaProbeUrl = "https://api.anthropic.com/";
+  # Индекс активного сервера. В /run (а не в RuntimeDirectory юнита), потому
+  # что файл переживает перезапуск сервиса и пишется ещё и hysteria-watch.
+  hysteriaState = "/run/hysteria-active";
+  hysteriaStamp = "/run/hysteria-failback";  # время последней попытки вернуться
+  hysteriaCount = toString (builtins.length hysteriaServers);
+  quoteList = f: lib.concatMapStringsSep " " (s: lib.escapeShellArg (f s)) hysteriaServers;
+
+  # ExecStart сервиса: перебирает серверы, начиная с запомненного, и остаётся
+  # на первом, через который реально ходит трафик.
+  hysteria-up = pkgs.writeShellApplication {
+    name = "hysteria-up";
+    runtimeInputs = with pkgs; [ hysteria curl coreutils ];
+    text = ''
+      secrets=( ${quoteList (s: s.path)} )
+      names=( ${quoteList (s: s.name)} )
+      n=${hysteriaCount}
+
+      start=$(cat ${hysteriaState} 2>/dev/null || echo 0)
+      case "$start" in ""|*[!0-9]*) start=0 ;; esac
+      [ "$start" -lt "$n" ] || start=0
+
+      for i in $(seq 0 $(( n - 1 ))); do
+        idx=$(( (start + i) % n ))
+        echo "hysteria: пробую ''${names[idx]}"
+        hysteria client -c "''${secrets[idx]}" &
+        pid=$!
+
+        # Локальный порт 3128 открывается только ПОСЛЕ успешного хендшейка,
+        # так что «отвечает ли прокси» — и есть проверка живости сервера.
+        # 25 с с запасом покрывают штатный таймаут hysteria (20 с).
+        ok=0
+        for _ in $(seq 1 25); do
+          sleep 1
+          kill -0 "$pid" 2>/dev/null || break   # клиент сдался сам
+          if curl -sS -m 5 -o /dev/null -x "http://${hysteriaProxy}" "${hysteriaProbeUrl}"; then
+            ok=1
+            break
+          fi
+        done
+
+        if [ "$ok" = 1 ]; then
+          echo "$idx" > ${hysteriaState}
+          echo "hysteria: активен ''${names[idx]}"
+          # Остаёмся на переднем плане: юнит живёт ровно столько, сколько
+          # живёт клиент. Умер — systemd перезапустит нас, и перебор пойдёт
+          # заново с этого же индекса.
+          rc=0
+          wait "$pid" || rc=$?
+          exit "$rc"
+        fi
+
+        kill "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
+      done
+
+      echo "hysteria: ни один сервер не отвечает"
+      exit 1
+    '';
+  };
+
+  # Сторож: раз в минуту проверяет туннель, переключает на следующий сервер
+  # и раз в полчаса пробует вернуться на основной.
+  hysteria-watch = pkgs.writeShellApplication {
+    name = "hysteria-watch";
+    runtimeInputs = with pkgs; [ curl coreutils systemd ];
+    text = ''
+      alive() {
+        curl -sS -m 5 -o /dev/null -x "http://${hysteriaProxy}" "${hysteriaProbeUrl}"
+      }
+
+      # Интернета нет вовсе (спящий wifi, капативный портал) — это не отказ
+      # сервера, дёргать туннель незачем.
+      if ! curl -sS -m 5 -o /dev/null https://ya.ru; then
+        exit 0
+      fi
+
+      n=${hysteriaCount}
+      idx=$(cat ${hysteriaState} 2>/dev/null || echo 0)
+      case "$idx" in ""|*[!0-9]*) idx=0 ;; esac
+
+      if alive; then
+        # Всё работает. Сидим на резерве — не чаще раза в 30 минут пробуем
+        # вернуться на основной. Проверка = перезапуск: если основной всё ещё
+        # мёртв, hysteria-up секунд через 25 сам вернётся на резерв.
+        if [ "$idx" = 0 ]; then
+          exit 0
+        fi
+        now=$(date +%s)
+        last=$(cat ${hysteriaStamp} 2>/dev/null || echo 0)
+        case "$last" in ""|*[!0-9]*) last=0 ;; esac
+        if [ $(( now - last )) -lt 1800 ]; then
+          exit 0
+        fi
+        echo "$now" > ${hysteriaStamp}
+        echo "hysteria-watch: пробую вернуться на основной сервер"
+        echo 0 > ${hysteriaState}
+        systemctl restart hysteria-client
+        exit 0
+      fi
+
+      # Туннель молчит. Одна перепроверка — мало ли моргнула сеть.
+      sleep 10
+      if alive; then
+        exit 0
+      fi
+
+      echo "hysteria-watch: туннель не отвечает, переключаюсь на следующий сервер"
+      echo $(( (idx + 1) % n )) > ${hysteriaState}
+      systemctl restart hysteria-client
+    '';
+  };
+
   # claude-code, всегда ходящий через hysteria (http-прокси на 3128).
   # Обёртка, а не глобальные HTTPS_PROXY — через VPN идёт только claude,
   # остальная система работает напрямую.
@@ -279,17 +408,56 @@ in
     mode = "0400";
   };
 
+  # Резервный сервер — точно такой же конфиг, отдельным секретом.
+  # Добавить третий: завести secrets/hysteria-client-3.age, вписать его в
+  # secrets/secrets.nix и дописать строку в hysteriaServers (см. let выше) —
+  # всё остальное подхватится само.
+  age.secrets.hysteria-client-2 = {
+    file = ../secrets/hysteria-client-2.age;
+    path = "/etc/hysteria/client2.yaml";
+    mode = "0400";
+  };
+
+  # Один процесс на 3128, а не два прокси с балансировщиком впереди: локальный
+  # listener hysteria жив и при мёртвом сервере, так что TCP-балансировщик
+  # отказа просто не увидит. Отличить рабочий туннель от нерабочего можно
+  # только сходив наружу — этим и заняты hysteria-up (при старте) и
+  # hysteria-watch (раз в минуту), оба в let-блоке выше.
   systemd.services.hysteria-client = {
-    description = "Hysteria 2 client";
+    description = "Hysteria 2 client (первый живой сервер из списка)";
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
     wantedBy = [ "multi-user.target" ];
+    # Перебор мёртвых серверов — до ~25 с на каждый, плюс перезапуски от
+    # hysteria-watch. Штатный лимит стартов (5 за 10 с) при этом не нужен:
+    # он бы однажды погасил туннель насовсем.
+    startLimitIntervalSec = 0;
     serviceConfig = {
-      ExecStart = "${pkgs.hysteria}/bin/hysteria client -c ${config.age.secrets.hysteria-client.path}";
-      Restart = "on-failure";
+      ExecStart = "${hysteria-up}/bin/hysteria-up";
+      # always, а не on-failure: чем бы клиент ни завершился, обёртка должна
+      # заново выбрать живой сервер.
+      Restart = "always";
       RestartSec = 5;
       CapabilityBoundingSet = [ "CAP_NET_ADMIN" "CAP_NET_BIND_SERVICE" ];
       AmbientCapabilities = [ "CAP_NET_ADMIN" "CAP_NET_BIND_SERVICE" ];
+    };
+  };
+
+  systemd.services.hysteria-watch = {
+    description = "Проверка hysteria-туннеля и переключение серверов";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${hysteria-watch}/bin/hysteria-watch";
+    };
+  };
+
+  systemd.timers.hysteria-watch = {
+    description = "Раз в минуту проверять hysteria-туннель";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2min";      # дать hysteria-client спокойно подняться
+      OnUnitActiveSec = "1min";
+      AccuracySec = "10s";
     };
   };
 
