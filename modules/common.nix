@@ -260,6 +260,31 @@ in
   # Use latest kernel.
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
+  # zswap — сжатый кеш страниц ПЕРЕД свопом на диске: страница сначала
+  # жмётся zstd и остаётся в RAM, и только вытесненное из этого пула
+  # уезжает на диск по-настоящему.
+  #
+  # Зачем: на стационаре в свопе стабильно висело ~6 ГБ при 15 ГБ RAM
+  # (Steam, zen с десятком процессов, electron-приложения, claude), и
+  # /proc/pressure/io показывал `full avg300=8.49` — система целиком
+  # стояла на диске 8.5% времени. Проявлялось это как секундные паузы на
+  # холодном старте приложений: нажатие Mod+T и терминал через три
+  # секунды. Разжать страницу из RAM на порядки дешевле, чем прочитать
+  # её с диска.
+  #
+  # max_pool_percent=20 — потолок пула, доля физической RAM. Заводские
+  # 20 и есть, пишем явно, чтобы цифра была на виду при подкрутке.
+  #
+  # Ядерные параметры, поэтому применяются ТОЛЬКО ПОСЛЕ ПЕРЕЗАГРУЗКИ,
+  # одного nixos-rebuild switch мало. Проверка после неё:
+  #   cat /sys/module/zswap/parameters/enabled   → Y
+  boot.kernelParams = [
+    "zswap.enabled=1"
+    "zswap.compressor=zstd"
+    "zswap.zpool=zsmalloc"
+    "zswap.max_pool_percent=20"
+  ];
+
   # Enable networking
   networking.networkmanager.enable = true;
 
