@@ -101,6 +101,7 @@ in
     inputs.noctalia.homeModules.default
     inputs.nixvim.homeModules.nixvim
     ./noctalia.nix        # весь конфиг шелла — бар, док, виджеты, тема, плагины
+    ./floorp.nix          # браузер Floorp + мод Natsumi (полная версия, с JS)
   ];
 
   home.stateVersion = "26.05";
