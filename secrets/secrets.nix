@@ -35,10 +35,4 @@ in
   # Конфиг hysteria-клиента: адрес сервера, пароль, obfs-ключ.
   # Разворачивается в /etc/hysteria/client.yaml (см. modules/common.nix).
   "hysteria-client.age".publicKeys = [ artur ] ++ hosts;
-
-  # Резервный сервер (pxy-hy2). Отдельный файл того же вида; на него
-  # автоматически встаёт hysteria-up, когда основной перестаёт отвечать.
-  # Оба конфига держат http-прокси на одном и том же 127.0.0.1:3128 —
-  # одновременно работает только один, поэтому конфликта портов нет.
-  "hysteria-client-2.age".publicKeys = [ artur ] ++ hosts;
 }
