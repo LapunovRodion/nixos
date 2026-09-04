@@ -75,27 +75,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # natsumi — мод (CSS + JS) поверх Firefox-форков: перекрашивает интерфейс
-    # и добавляет свои модули. НЕ браузер сам по себе. Ставится на Floorp —
-    # единственный браузер в системе, у апстрима мода он рекомендованный
-    # (см. home/floorp.nix).
-    # Обычный репозиторий, не flake (flake = false): нужны только файлы —
-    # каталог natsumi/ и natsumi-config.css. Обновление: nix flake update
-    # natsumi → rebuild.
-    natsumi = {
-      url = "github:greeeen-dev/natsumi-browser";
-      flake = false;
-    };
-
-    # fx-autoconfig — загрузчик userChrome-скриптов (штатного способа грузить
-    # свой JS в интерфейс Firefox не существует). Нужен ТОЛЬКО ради JS-части
-    # Natsumi («Natsumi Append»): без него из мода работает один CSS, а
-    # Miniplayer, Single Toolbar, Compact Mode и страница настроек — нет.
-    # Часть его файлов кладётся в каталог УСТАНОВКИ браузера, поэтому пакет
-    # floorp-bin приходится override-ить, см. home/floorp.nix.
-    fx-autoconfig = {
-      url = "github:MrOtherGuy/fx-autoconfig";
-      flake = false;
+    # zen-browser — нет в nixpkgs, ставится своим flake.
+    zen-browser = {
+      url = "github:0xc000022070/zen-browser-flake";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # claude-desktop (Linux) — нет в nixpkgs. Официальный .deb от Anthropic

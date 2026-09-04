@@ -69,6 +69,10 @@
     notificationScale = 1.0;
     osdScale = 1.0;
     hasBattery = false;
+    # Профиля Zen на новой машине ещё нет. После первого запуска браузера
+    # посмотреть имя каталога в ~/.config/zen/profiles.ini и вписать сюда —
+    # тогда home-manager положит туда user.js (шрифты, стартовая страница).
+    zenProfileDir = null;
     niriOutputs = ./outputs.kdl;
     wayvncConfig = ./wayvnc-config;
   };
