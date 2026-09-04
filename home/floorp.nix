@@ -124,7 +124,8 @@ in
   # Всё это симлинки в /nix/store, то есть read-only. Плата за то, что
   # мод обновляется одним nix flake update, а не git pull в профиле.
   # Если понадобится править natsumi-config.css руками — переводить его
-  # на config.lib.file.mkOutOfStoreSymlink, как сделано с abbrs.fish.
+  # на config.lib.file.mkOutOfStoreSymlink: симлинк не в store, а прямо
+  # в репозиторий, то есть с правом записи.
   # ---------------------------------------------------------------
   home.file = {
     "${chrome}/natsumi".source = "${inputs.natsumi}/natsumi";
