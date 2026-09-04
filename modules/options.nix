@@ -77,18 +77,6 @@
       description = "Есть ли батарея: от этого зависит виджет battery в баре.";
     };
 
-    zenProfileDir = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      example = "vkvdhp86.Default Profile";
-      description = ''
-        Имя каталога профиля Zen в ~/.config/zen (см. profiles.ini).
-        Префикс случайный, поэтому на каждой машине свой. null — профиля
-        ещё нет, user.js не писать: home-manager положил бы файл в
-        несуществующий каталог и молча ничего не сделал.
-      '';
-    };
-
     niriOutputs = lib.mkOption {
       type = lib.types.path;
       description = ''

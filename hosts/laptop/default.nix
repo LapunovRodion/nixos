@@ -89,7 +89,6 @@
     notificationScale = 0.95;
     osdScale = 0.7;
     hasBattery = true;
-    zenProfileDir = "vkvdhp86.Default Profile";
     niriOutputs = ./outputs.kdl;
 
     # Окружение разработки (см. modules/dev.nix). Выставить в false и

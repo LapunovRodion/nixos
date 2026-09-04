@@ -537,16 +537,10 @@ in
     # Фоновая синхронизация папок и так на syncthing (см. ниже).
     localsend
 
-    # ---- Batch 3b: браузер (из стороннего flake) ----
-    # Zen — ветка Twilight (ночные сборки) вместо стабильной (ревизия 2026-07-28).
-    # twilight, а не twilight-official: первый берёт зеркало, которое сам flake
-    # пересобирает и пиннит по хешу (обновляется через nix flake update), второй
-    # тянет катящийся официальный релиз и ломает eval, как только upstream
-    # перевыложит архив под тем же URL.
-    # Профиль общий со стабильной версией (Vendor=Mozilla, Name=Zen у обеих),
-    # так что история, вкладки, user.js и тема из noctalia остаются на месте.
-    # Бинарь и .desktop называются zen-twilight, а не zen-beta.
-    inputs.zen-browser.packages.${pkgs.system}.twilight
+    # ---- Браузер ----
+    # Здесь его нет: Floorp ставится home-manager'ом (programs.floorp), потому
+    # что вместе с ним настраивается профиль под мод Natsumi — см. home/floorp.nix.
+    #
     # claude-desktop сюда НЕ входит: ставится модулем programs.claude-desktop
     # ниже (свой пакет claude-desktop-vpn, обёрнутый на VPN, см. let выше)
 

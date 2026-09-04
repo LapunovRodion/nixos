@@ -75,16 +75,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # zen-browser — нет в nixpkgs, ставится своим flake.
-    zen-browser = {
-      url = "github:0xc000022070/zen-browser-flake";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # natsumi — мод (CSS + JS) поверх Firefox-форков: перекрашивает интерфейс
-    # и добавляет свои модули. НЕ браузер сам по себе. Zen апстрим держит в
-    # списке несовместимых, а Floorp у него рекомендованный — отсюда второй
-    # браузер в системе (см. home/floorp.nix).
+    # и добавляет свои модули. НЕ браузер сам по себе. Ставится на Floorp —
+    # единственный браузер в системе, у апстрима мода он рекомендованный
+    # (см. home/floorp.nix).
     # Обычный репозиторий, не flake (flake = false): нужны только файлы —
     # каталог natsumi/ и natsumi-config.css. Обновление: nix flake update
     # natsumi → rebuild.

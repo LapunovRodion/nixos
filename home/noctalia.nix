@@ -123,7 +123,11 @@ in
           # скрипт стоит на `set -euo pipefail`, и post_hook валится на каждой
           # смене обоев. Держать шаблон включённым можно только вместе с той
           # строкой; раз строки нет — нет и шаблона.
-          community_ids = [ "zen-browser" "obsidian" "fuzzel" "lazygit" "yazi" "telegram" ];
+          #
+          # "zen-browser" ушёл вместе с самим браузером. Замены для Floorp в
+          # community-plugins нет, да и не нужна: его интерфейс красит Natsumi
+          # своей темой (см. home/floorp.nix).
+          community_ids = [ "obsidian" "fuzzel" "lazygit" "yazi" "telegram" ];
 
           # Свой шаблон niri. input_path абсолютный (путь в /nix/store),
           # так что noctalia берёт его как есть — resolveConfigPath
