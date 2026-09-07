@@ -779,6 +779,10 @@ in
       # Рамку и тень рисует niri, свои декорации не нужны.
       hide_window_decorations = "yes";
       window_padding_width = 14;
+      # Когда окно в терминале одно (обычный случай — разделением занят
+      # niri), воздуха можно дать больше. На сплиты продолжает
+      # действовать window_padding_width выше.
+      single_window_padding_width = 20;
       confirm_os_window_close = 0;
 
       # Прозрачности НЕТ НИГДЕ, и 1.0 стоит явно.
@@ -826,6 +830,13 @@ in
       tab_bar_style = "powerline";
       tab_powerline_style = "slanted";
       active_tab_font_style = "bold";
+      # Поля панели табов (в pt): первое — от края окна, второе — до
+      # содержимого. Панель перестаёт быть приклеенной к тексту.
+      tab_bar_margin_height = "6.0 6.0";
+      tab_bar_margin_width = "8.0";
+      tab_bar_align = "center";
+      # Номер таба перед заголовком: по нему же переключение (Ctrl+Shift+N).
+      tab_title_template = "{index}  {title}";
 
       # Шлейф за курсором (kitty 0.47). Значение — порог в МИЛЛИСЕКУНДАХ:
       # шлейф рисуется только за курсором, простоявшим дольше порога,
@@ -833,12 +844,40 @@ in
       cursor_trail = 3;
       cursor_trail_start_threshold = 2;
       cursor_shape = "beam";
+      # Шлейф гаснет быстрее заводского (0.1 0.4): меньше «мыла» при
+      # быстром движении по строке.
+      cursor_trail_decay = "0.05 0.3";
+      # Мигание с плавным затуханием, а не рубленое вкл/выкл.
+      cursor_blink_interval = "0.6 ease-in-out";
+      cursor_stop_blinking_after = "12.0";
+      # В неактивном сплите курсор — контур: видно, где он, но глаз не тянет.
+      cursor_shape_unfocused = "hollow";
 
       # Лигатуры нужны, но под курсором разъезжаются — там показываем раздельно.
       disable_ligatures = "cursor";
 
+      # Скроллбар (kitty 0.48). Показывается при наведении на правый край,
+      # чтобы не отъедать колонку постоянно. Ширина и радиус — в ширинах
+      # ячейки, радиус обязан быть меньше ширины. Трек невидимый: нужна
+      # только сама ручка.
+      scrollbar = "hovered";
+      scrollbar_width = "0.4";
+      scrollbar_radius = "0.2";
+      scrollbar_gap = "0.15";
+      scrollbar_handle_color = "selection_background";
+      scrollbar_handle_opacity = "0.7";
+      scrollbar_track_opacity = "0.0";
+
+      # Указатель мыши убирается сразу, как начал печатать (отрицательное
+      # значение именно это и означает), а не через 3 секунды.
+      mouse_hide_wait = "-1.0";
+      # Текст в неактивном сплите чуть тусклее — видно, где фокус.
+      inactive_text_alpha = "0.9";
+
       scrollback_lines = 20000;
       enable_audio_bell = "no";
+      # Звонок выключен, поэтому единственный сигнал — короткая вспышка.
+      visual_bell_duration = "0.12 ease-out";
     };
 
     # Палитра от noctalia. Путь ОБЯЗАН быть абсолютным.
