@@ -1,4 +1,4 @@
-{ config, osConfig, lib, inputs, ... }:
+{ config, osConfig, lib, pkgs, inputs, ... }:
 
 let
   # Машинозависимое — из опций local.* (объявлены в modules/options.nix,
@@ -15,6 +15,21 @@ let
   centerX = scr.width * 1.0 / 2;
   fromRight = margin: scr.width * 1.0 - margin;
   fromBottom = margin: scr.height * 1.0 - margin;
+
+  # post_hook шаблона kitty: рисует картинку-градиент из цветов свежей
+  # палитры. Разбор — в самом скрипте. writeShellApplication добавляет
+  # шебанг и `set -euo pipefail` и прогоняет shellcheck при сборке,
+  # поэтому в файле их нет.
+  #
+  # runtimeInputs обязателен целиком: хук запускается из user-сервиса
+  # noctalia, где PATH минимальный, — coreutils и findutils оттуда не
+  # взять. imagemagick при этом в systemPackages не нужен, он приезжает
+  # замыканием этой обёртки.
+  kittyGradient = pkgs.writeShellApplication {
+    name = "kitty-gradient";
+    runtimeInputs = with pkgs; [ imagemagick coreutils findutils procps gawk ];
+    text = builtins.readFile ./kitty/gradient.sh;
+  };
 in
 
 # =============================================================
@@ -106,7 +121,17 @@ in
           # свой шаблон ниже, templates.user.niri — он покрывает всё, что
           # делал встроенный, плюс градиент. Держать оба нельзя: два файла
           # определяли бы один и тот же focus-ring.
-          builtin_ids = [ "btop" "gtk3" "gtk4" "kitty" "qt" ];
+          #
+          # "kitty" УБРАН по тем же двум причинам, что расписаны в шапке
+          # kitty/theme.conf.in: встроенный берёт terminal_background как
+          # есть (сильно подкрашенный обоями), а его apply.sh дописывает
+          # строку include в ~/.config/kitty/kitty.conf — read-only симлинк
+          # на /nix/store. Хук падал на первом же touch («Permission
+          # denied» в journalctl --user -u noctalia при каждой ротации
+          # обоев), и pkill -USR1 в его конце никогда не выполнялся:
+          # открытые окна не перекрашивались. Держать оба нельзя — два
+          # шаблона писали бы один и тот же themes/noctalia.conf.
+          builtin_ids = [ "btop" "gtk3" "gtk4" "qt" ];
           # telegram — под AyuGram (форк Telegram Desktop, формат палитры тот же).
           # ОСОБЫЙ СЛУЧАЙ: у этого шаблона нет post_hook, он только кладёт файл
           # ~/.config/telegram-desktop/themes/noctalia.tdesktop-theme. Сам Telegram
@@ -146,6 +171,19 @@ in
           user.claude = {
             input_path = "${./claude/theme.json.in}";
             output_path = "~/.claude/themes/noctalia.json";
+          };
+
+          # Свой шаблон kitty вместо встроенного (см. builtin_ids выше).
+          # output_path тот же, что был у встроенного, поэтому строку
+          # include в home.nix менять не пришлось.
+          #
+          # post_hook рисует картинку-градиент фона и шлёт kitty SIGUSR1.
+          # Читает он цвета из ТОЛЬКО ЧТО отрендеренного output_path —
+          # маркерные строки в конце theme.conf.in кладутся ради него.
+          user.kitty = {
+            input_path = "${./kitty/theme.conf.in}";
+            output_path = "~/.config/kitty/themes/noctalia.conf";
+            post_hook = "${kittyGradient}/bin/kitty-gradient";
           };
         };
       };

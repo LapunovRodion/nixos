@@ -1,0 +1,111 @@
+# Тема kitty — ВХОД для генератора палитры noctalia.
+#
+# Это не рабочий конфиг: {{...}} подставляет noctalia при каждой смене
+# палитры (у меня source = "wallpaper", то есть при каждой смене обоев).
+# Результат ложится в ~/.config/kitty/themes/noctalia.conf, который
+# подключён последней строкой сгенерированного ~/.config/kitty/kitty.conf
+# (programs.kitty.extraConfig в home.nix). Последний include в kitty
+# перебивает заданное выше, поэтому settings из home-manager красить
+# цвета не пытаются — они просто перекрываются отсюда.
+#
+# Объявление шаблона — в ~/nixos/home/noctalia.nix,
+# [theme.templates.user.kitty]. Заменяет ВСТРОЕННЫЙ шаблон "kitty"
+# (он убран из builtin_ids) по двум причинам:
+#
+#   1. Фон. Встроенный берёт terminal_background как есть, а это
+#      сильно подкрашенный обоями цвет (#091613 — тёмно-зелёный).
+#      Здесь фон уводится почти в чёрный: тон остаётся «от обоев»,
+#      но насыщенность и светлота заданы жёстко.
+#   2. post_hook. Встроенный apply.sh дописывает строку include в
+#      ~/.config/kitty/kitty.conf, а тот — read-only симлинк в
+#      /nix/store. Скрипт падал на первом же touch, и pkill -USR1
+#      в его конце НИКОГДА не выполнялся: открытые окна kitty не
+#      перекрашивались при смене обоев. Здесь post_hook свой
+#      (kitty/gradient.sh) и kitty.conf не трогает.
+#
+# ПОЧЕМУ ANSI СЧИТАЮТСЯ ЧЕРЕЗ set_hue, А НЕ БЕРУТСЯ ИЗ terminal_normal_*
+# — ровно та же причина, что расписана в claude/theme.json.in: при
+# wallpaper_scheme = "soft" роли terminal_* сдвинуты к обоям целиком,
+# и слоты схлопываются. Проверено на текущих обоях: color5 (magenta)
+# совпадал с color2 (green) до символа, color6 (cyan) — с color3
+# (yellow), а color1 (red) был розовым. Бьёт по всему, что берёт цвета
+# из палитры терминала: fish, bat --theme=ansi, fzf --color=16, tmux.
+# Поэтому берём primary — в нём насыщенность и светлота текущих обоев —
+# и ставим нужный тон градусами.
+#
+# Фильтры (src/theme/template_engine.cpp): grayscale, invert, set_alpha,
+# set_lightness, set_hue, set_saturation, set_red/green/blue, lighten,
+# darken, saturate, desaturate, auto_lightness, rotate_hue. Аргументы —
+# В ПРОЦЕНТАХ (0..100), у set_hue — градусы.
+
+# ---- Градиент фона -------------------------------------------------
+# НЕ настройки kitty, а данные для post_hook: kitty/gradient.sh грепает
+# эти две строки awk'ом по второму полю и рисует из них PNG. Формат
+# менять нельзя — «# <имя> <#hex>», ровно три поля.
+#
+# Сверху темнее, снизу светлее. Размах 2→14 % светлоты — это около
+# 31 уровня 8-битной шкалы, то есть градиент видно без вглядывания.
+#
+# Ножницы были втрое уже (3→10), пока окно гасилось до opacity 0.92 в
+# niri: подмес обоев всё равно съедал разницу, и разгонять размах было
+# бессмысленно. Прозрачность снята (разбор — в home/niri/config.kdl),
+# теперь картинка видна как есть, и размах имеет смысл.
+# noctalia-gradient-top {{colors.surface.default.hex | set_saturation 12 | set_lightness 2}}
+# noctalia-gradient-bottom {{colors.surface.default.hex | set_saturation 18 | set_lightness 14}}
+
+# ---- ANSI ----------------------------------------------------------
+# Тона: 5 красный, 140 зелёный, 48 жёлтый, 215 синий, 292 пурпурный,
+# 185 голубой — те же числа, что уже проверены в claude/theme.json.in.
+# bright — то же самое плюс lighten 12.
+# ANSI-чёрный светлее фона намеренно: низ окна дорос до светлоты 14,
+# и на 16 «чёрный» текст сливался бы с фоном.
+color0  {{colors.surface.default.hex | set_saturation 10 | set_lightness 20}}
+color1  {{colors.primary.default.hex | set_hue 5}}
+color2  {{colors.primary.default.hex | set_hue 140}}
+color3  {{colors.primary.default.hex | set_hue 48}}
+color4  {{colors.primary.default.hex | set_hue 215}}
+color5  {{colors.primary.default.hex | set_hue 292}}
+color6  {{colors.primary.default.hex | set_hue 185}}
+color7  {{colors.on_surface.default.hex}}
+color8  {{colors.surface.default.hex | set_saturation 10 | set_lightness 34}}
+color9  {{colors.primary.default.hex | set_hue 5 | lighten 12}}
+color10 {{colors.primary.default.hex | set_hue 140 | lighten 12}}
+color11 {{colors.primary.default.hex | set_hue 48 | lighten 12}}
+color12 {{colors.primary.default.hex | set_hue 215 | lighten 12}}
+color13 {{colors.primary.default.hex | set_hue 292 | lighten 12}}
+color14 {{colors.primary.default.hex | set_hue 185 | lighten 12}}
+color15 {{colors.on_surface.default.hex | lighten 10}}
+
+# ---- Фон и текст ---------------------------------------------------
+# background виден в зазорах между сплитами и остаётся единственным
+# фоном, если каталог ~/.config/kitty/backgrounds пуст (чистая машина
+# до первого применения темы). Поэтому светлота — середина размаха
+# градиента, (2 + 14) / 2.
+background            {{colors.surface.default.hex | set_saturation 14 | set_lightness 8}}
+foreground            {{colors.terminal_foreground.default.hex}}
+selection_foreground  {{colors.terminal_selection_fg.default.hex}}
+selection_background  {{colors.terminal_selection_bg.default.hex}}
+
+cursor                {{colors.terminal_cursor.default.hex}}
+# Текст ПОД курсором — цветом фона, иначе символ пропадает в заливке.
+# Берём тот же почти чёрный, что и background выше: terminal_cursor_text
+# равен terminal_background, то есть подкрашенному обоями цвету,
+# от которого мы здесь как раз уходим.
+cursor_text_color     {{colors.surface.default.hex | set_saturation 14 | set_lightness 8}}
+cursor_trail_color    {{colors.on_surface_variant.default.hex}}
+
+active_border_color   {{colors.primary.default.hex}}
+inactive_border_color {{colors.surface_variant.default.hex}}
+url_color             {{colors.primary.default.hex}}
+
+# ---- Табы ----------------------------------------------------------
+# Панель табов стоит у ВЕРХНЕГО края окна, где картинка-градиент
+# темнее всего (светлота 2). Поэтому и панель красится в 2, а не в
+# середину: иначе на стыке был бы виден шов. tab_bar_margin_color
+# красит поля, заданные tab_bar_margin_height/width в home.nix.
+tab_bar_background      {{colors.surface.default.hex | set_saturation 14 | set_lightness 2}}
+tab_bar_margin_color    {{colors.surface.default.hex | set_saturation 14 | set_lightness 2}}
+active_tab_foreground   {{colors.on_primary.default.hex}}
+active_tab_background   {{colors.primary.default.hex}}
+inactive_tab_foreground {{colors.on_surface_variant.default.hex}}
+inactive_tab_background {{colors.surface_variant.default.hex}}
