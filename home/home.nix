@@ -1456,6 +1456,14 @@ in
       luasnip.enable = true;        # движок сниппетов, нужен cmp ниже
       bufferline.enable = true;     # строка буферов сверху
 
+      # :Bdelete вместо штатного :bdelete. Разница ровно одна, но
+      # существенная: штатный вместе с буфером закрывает и ОКНО, в котором
+      # тот показан. При сплите или открытом дереве файлов раскладка
+      # разъезжается на каждом закрытии вкладки. :Bdelete подставляет в
+      # окно соседний буфер и оставляет геометрию как была.
+      # Кеймапы — ниже, группа <leader>b.
+      bufdelete.enable = true;
+
       # Прогресс LSP в углу. Не косметика: roslyn грузит solution десятки
       # секунд, и без индикатора это неотличимо от «ничего не работает».
       fidget.enable = true;
@@ -1471,6 +1479,7 @@ in
       which-key = {
         enable = true;
         settings.spec = [
+          { __unkeyed-1 = "<leader>b"; group = "Буферы"; }
           { __unkeyed-1 = "<leader>f"; group = "Поиск"; }
           { __unkeyed-1 = "<leader>c"; group = "Код"; }
           { __unkeyed-1 = "<leader>d"; group = ".NET"; }
@@ -1750,6 +1759,18 @@ in
       # Буферы
       { key = "<S-h>"; action = "<cmd>BufferLineCyclePrev<cr>"; options.desc = "Предыдущий буфер"; }
       { key = "<S-l>"; action = "<cmd>BufferLineCycleNext<cr>"; options.desc = "Следующий буфер"; }
+
+      # Закрыть вкладку из строки буферов сверху. Именно :Bdelete, а не
+      # :bdelete — почему, расписано у bufdelete.enable выше.
+      #
+      # Заглавная D — с восклицательным знаком: закрывает, ВЫБРОСИВ
+      # несохранённые правки. Без него :Bdelete на грязном буфере просто
+      # ругается «No write since last change», и это правильно: терять
+      # написанное по опечатке в хоткее не должно быть легко.
+      { key = "<leader>bd"; action = "<cmd>Bdelete<cr>";  options.desc = "Закрыть буфер"; }
+      { key = "<leader>bD"; action = "<cmd>Bdelete!<cr>"; options.desc = "Закрыть буфер, отбросив правки"; }
+      # Разгрести строку буферов, когда их набралось два десятка.
+      { key = "<leader>bo"; action = "<cmd>BufferLineCloseOthers<cr>"; options.desc = "Закрыть все, кроме текущего"; }
 
       # Диагностика списком
       { key = "<leader>xx"; action = "<cmd>Trouble diagnostics toggle<cr>"; options.desc = "Диагностики"; }
