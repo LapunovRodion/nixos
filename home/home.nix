@@ -1593,6 +1593,8 @@ in
         enable = true;
         settings = {
           formatters_by_ft = {
+            c = [ "clang-format" ];
+            cpp = [ "clang-format" ];
             cs = [ "csharpier" ];
             nix = [ "nixfmt" ];
             lua = [ "stylua" ];
@@ -1621,6 +1623,45 @@ in
           lua_ls.enable = true;    # lua
           bashls.enable = true;    # bash
           texlab.enable = true;    # latex — в mymathlib на вход идут .tex с формулами
+
+          # ---- C/C++ ----
+          #
+          # Пакет сервера — clang-tools, nixvim подставляет его сам по имени.
+          # В нём же лежит clang-format, которым форматирует conform выше:
+          # это единственный форматтер, которого нет в extraPackages, потому
+          # что он приезжает вместе с языковым сервером.
+          clangd = {
+            enable = true;
+
+            # Пакет уходит в КОНЕЦ PATH обёртки nvim, а не в начало. Смысл тот
+            # же, что у dotnet: тулчейн живёт в devShell проекта, и если там
+            # есть свой clang-tools — выигрывать должен он, чтобы clangd и
+            # clang-format совпадали по версии с компилятором проекта.
+            # Нет своего — работает этот.
+            packageFallback = true;
+
+            cmd = [
+              "clangd"
+              "--background-index"        # индексирует проект целиком в фоне
+              "--clang-tidy"              # проверки clang-tidy прямо в диагностике
+              "--completion-style=detailed"
+
+              # Главный флаг всей этой затеи. По умолчанию clangd НЕ
+              # спрашивает у компилятора из compile_commands.json, где лежат
+              # его встроенные заголовки, а берёт пути, вшитые в него при
+              # сборке. Красного экрана на #include <iostream> из-за этого не
+              # будет: nixpkgs собирает clang-tools в паре со своим gcc, и
+              # libstdc++ находится. Беда тоньше — находится ЧУЖОЙ, не тот,
+              # что стоит в devShell проекта. Проверено на месте: проект,
+              # приколоченный к gcc 14, без этого флага разбирается clangd по
+              # заголовкам от gcc 15.3 из замыкания clang-tools. Ошибок ноль,
+              # а расхождения в свежих <ranges>/<expected> — молча твои.
+              # Глоб даёт clangd право спросить у любого драйвера из стора его
+              # настоящие пути включения. Одной звёздочки на хеш хватает: `*`
+              # здесь, в отличие от шелла, проходит и через слэши.
+              "--query-driver=/nix/store/*/bin/*"
+            ];
+          };
         };
       };
 
@@ -1715,10 +1756,41 @@ in
           if t then dotnet_term("dotnet run --project " .. vim.fn.shellescape(t)) end
         end,
       }
+
+      -- ---- C++: .h ↔ .cpp ----
+      --
+      -- switchSourceHeader — не стандартный метод LSP, а собственное
+      -- расширение clangd, поэтому идёт голым запросом к клиенту, а не через
+      -- vim.lsp.buf.*. Клиент ищется по имени: в буфере может сидеть не он
+      -- один (например, ещё и typos-подобный сервер), а метод понимает
+      -- только clangd.
+      _G.nixvim_cpp = {
+        switch_source_header = function()
+          local client = vim.lsp.get_clients({ bufnr = 0, name = "clangd" })[1]
+          if not client then
+            vim.notify("clangd не подключён к этому буферу", vim.log.levels.WARN)
+            return
+          end
+          client:request(
+            "textDocument/switchSourceHeader",
+            vim.lsp.util.make_text_document_params(0),
+            function(err, result)
+              if err or not result then
+                vim.notify("Парный файл не найден", vim.log.levels.INFO)
+                return
+              end
+              vim.cmd.edit(vim.uri_to_fname(result))
+            end,
+            0
+          )
+        end,
+      }
     '';
 
     # Форматтеры для conform выше. Языковые серверы сюда НЕ добавляются:
     # их пакеты nixvim подставляет сам по plugins.lsp.servers.*.
+    # По той же причине здесь нет clang-format: он лежит в clang-tools,
+    # который уже приехал вместе с сервером clangd (см. plugins.lsp.servers).
     extraPackages = with pkgs; [
       csharpier
       nixfmt
@@ -1781,6 +1853,10 @@ in
       { key = "<leader>dt"; action.__raw = "function() _G.nixvim_dotnet.test() end";    options.desc = "Прогнать тесты"; }
       { key = "<leader>dr"; action.__raw = "function() _G.nixvim_dotnet.run() end";     options.desc = "Запустить проект"; }
       { key = "<leader>dR"; action.__raw = "function() _G.nixvim_dotnet.restore() end"; options.desc = "Restore"; }
+
+      # C++ — обёртка из extraConfigLua выше. Группа <leader>c («Код») в
+      # which-key уже объявлена, новую заводить не нужно.
+      { key = "<leader>ch"; action.__raw = "function() _G.nixvim_cpp.switch_source_header() end"; options.desc = "Заголовок ↔ реализация"; }
 
       # Git-ханки (gitsigns)
       { key = "]c"; action = "<cmd>Gitsigns next_hunk<cr>"; options.desc = "Следующий ханк"; }
