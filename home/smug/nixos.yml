@@ -1,0 +1,35 @@
+# Сессия tmux для самого конфига NixOS.
+#
+#   smug start nixos     поднять (уже поднятую — просто прицепиться)
+#   smug stop nixos      убить
+#   smug list            что вообще описано
+#
+# ФАЙЛ READ-ONLY. В ~/.config/smug/nixos.yml лежит симлинк в /nix/store,
+# источник правды — этот файл. Поэтому `smug edit nixos` и `smug rm nixos`
+# на нём НЕ работают: правка идёт сюда, затем ns. Та же схема, что у
+# niri/config.kdl и у tmux.conf (там же на этот случай висит бинд Ctrl-a r).
+#
+# Команды пишутся ПО ИМЕНИ, из PATH, а не как ${pkgs.nvim}/bin/nvim.
+# Абсолютный путь в /nix/store умрёт на первом же nix-collect-garbage,
+# и сессия перестанет подниматься на ровном месте.
+#
+# Панели не описаны сознательно: окна раздаёт niri, tmux здесь нужен ради
+# того, что сессия переживает закрытие терминала (см. комментарий к пакету
+# tmux в modules/common.nix). Если панели всё же понадобятся — синтаксис
+# лежит рядом, в TEMPLATE.yml.example.
+
+session: nixos
+root: ~/nixos
+
+windows:
+  # Редактор открывается сразу на дереве репозитория.
+  - name: editor
+    commands:
+      - nvim .
+
+  - name: git
+    commands:
+      - lazygit
+
+  # Без commands — остаётся просто fish. Отсюда гоняются ns/nb/ngc.
+  - name: shell
