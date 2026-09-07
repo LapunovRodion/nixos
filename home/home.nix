@@ -623,12 +623,16 @@ in
   # programs.git включён именно ради delta: интеграция пишется в
   # programs.git.iniContent, а он превращается в файл только когда
   # модуль git включён (modules/programs/delta.nix, hasGitConfig).
-  # Имя и почту НЕ задаю: глобального ~/.gitconfig у меня нет, личность
-  # прописана по репозиториям, и так и остаётся.
+  # Имя и почта — глобально, отсюда: ~/.config/git/config пишет home-manager
+  # (симлинк в /nix/store), так что `git config --global` туда не запишет,
+  # менять личность можно только здесь. Репозиторий, которому нужна другая
+  # подпись, перебивает это своим `git config --local user.*`.
   # credential.helper — не идентичность, а способ авторизации: gh уже
   # залогинен (gh auth login), пусть git берёт токен оттуда вместо
   # запроса логина/пароля по https.
   programs.git.enable = true;
+  programs.git.userName = "Rodion";
+  programs.git.userEmail = "lapunov.rodion@gmail.com";
   programs.git.extraConfig = {
     credential.helper = "!gh auth git-credential";
   };
