@@ -10,7 +10,9 @@ let
   # См. pkgs/specify-cli.nix. Заменяет прежний `uv tool install`.
   specify-cli = pkgs.python3Packages.callPackage ../pkgs/specify-cli.nix { };
 
-  # Основной моноширинный, тоже мимо nixpkgs — см. pkgs/lyth-mono.nix.
+  # Iosevka-сборка мимо nixpkgs — см. pkgs/lyth-mono.nix. Был основным
+  # моноширинным, теперь запасной: терминал и вся моноширина уехали на
+  # JetBrains Mono.
   lyth-mono = pkgs.callPackage ../pkgs/lyth-mono.nix { };
 
   # ---------------------------------------------------------------
@@ -691,11 +693,12 @@ in
   fonts = {
     enableDefaultPackages = true;
     packages = with pkgs; [
-      # Основной моноширинный: Iosevka-сборка с Nerd-глифами внутри.
+      # Iosevka-сборка с Nerd-глифами внутри. Держим ради охвата:
       # ~17900 кодовых точек против 1079 у Departure Mono, который
-      # стоял тут раньше и сыпался в «тофу» на всём, кроме базовой
-      # латиницы с кириллицей. Четыре веса плюс курсивы — синтетика
-      # для bold больше не нужна.
+      # стоял основным ещё раньше и сыпался в «тофу» на всём, кроме
+      # базовой латиницы с кириллицей. Четыре веса плюс курсивы.
+      # Основным больше не является — узкий, и на крупном кегле это
+      # видно; моноширина везде уехала на JetBrains Mono.
       lyth-mono
 
       # Departure Mono оставлен: пиксельный, красивый, но годится
@@ -736,9 +739,13 @@ in
       terminus_font_ttf           # ttf-terminus-font
     ];
     fontconfig.defaultFonts = {
-      # Lyth Mono самодостаточен (иконки и powerline у него свои),
-      # JetBrainsMono остаётся страховкой на совсем экзотику.
-      monospace = [ "LythMonoTerm Nerd Font" "JetBrainsMono Nerd Font" "MesloLGS Nerd Font" ];
+      # JetBrains Mono самодостаточен: сборка Nerd Fonts, иконки и
+      # powerline у него свои. Meslo и Lyth — страховка на экзотику,
+      # у Lyth охват шире всех (~17900 знаков).
+      # Здесь ВЕЗДЕ имена без суффикса Mono: он нужен только терминалу,
+      # где иконочные глифы обязаны быть одинарной ширины (см.
+      # programs.kitty в home/home.nix).
+      monospace = [ "JetBrainsMono Nerd Font" "MesloLGS Nerd Font" "LythMonoTerm Nerd Font" ];
 
       # Noto остаётся вторым не как «запасной похуже», а как ловец
       # экзотики: у Plex 893 знака, у PT Serif 717 — обоим хватает

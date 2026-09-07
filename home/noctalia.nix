@@ -46,7 +46,7 @@ in
 
       # ---- Оболочка ------------------------------------------------
       shell = {
-        font_family = "LythMonoTerm Nerd Font";
+        font_family = "JetBrainsMono Nerd Font";
         lang = "ru";
         app_icon_color = "primary";
         polkit_agent = true; # агент авторизации: без него sudo-диалоги GUI не всплывают
@@ -324,7 +324,7 @@ in
             rotation = 0.0;
             settings = {
               clock_style = "digital";
-              font_family = "LythMonoTerm Nerd Font";
+              font_family = "JetBrainsMono Nerd Font";
               center_text = false;
               background = false;
               background_radius = 0;
