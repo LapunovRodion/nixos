@@ -294,19 +294,10 @@ in
           config.allowUnfree = true;
         };
       in {
-        # >>> ВРЕМЕННОЕ ПЕРЕОПРЕДЕЛЕНИЕ (откатить, когда nixpkgs догонит) <<<
-        # nixpkgs-cc сейчас даёт 2.1.217 (срез до релиза Opus 5, 2026-07-24) — этот
-        # CLI ещё не знает про Opus 5. Тянем свежий прибилд 2.1.220 напрямую с
-        # downloads.claude.ai (тот же источник, что и сам пакет).
-        # ОТКАТ: убрать .overrideAttrs, оставить голый `ccPkgs.claude-code`, затем
-        # `nix flake update nixpkgs-cc` — вернёмся к версии из nixpkgs.
-        claude-code = ccPkgs.claude-code.overrideAttrs (old: {
-          version = "2.1.220";
-          src = prev.fetchurl {
-            url = "https://downloads.claude.ai/claude-code-releases/2.1.220/linux-x64/claude";
-            hash = "sha256-Z09h8g/zBvMQDPkgDkw2xLcCeLW+8ohFSYGblCqJyGM=";
-          };
-        });
+        # Если снова понадобится версия свежее, чем в nixpkgs-cc: подменять src
+        # через overrideAttrs уже нельзя «в лоб» — installPhase распаковывает его
+        # через unzstd, так что url должен вести на .zst, а не на голый бинарь.
+        claude-code = ccPkgs.claude-code;
       })
   ];
 
