@@ -1328,6 +1328,23 @@ in
       };
     };
 
+    # Ссылки в комментариях не выделяем. Парсер `comment` (инъекция в тело
+    # `///`) вешает на URL захват @string.special.url, а catppuccin красит его
+    # голубым курсивом с подчёркиванием — groups/treesitter.lua:37. В доксигеновых
+    # комментариях, где ссылка на MSDN стоит почти над каждым объявлением, это
+    # рвёт текст полосами. Линкуем группу на @comment: цвет тогда едет за темой
+    # сам, отдельный хекс держать не нужно.
+    #
+    # Именно highlightOverride, а не highlight: первый попадает в
+    # extraConfigLuaPost, то есть ПОСЛЕ `colorscheme catppuccin`, второй — в Pre,
+    # и тема его затрёт. custom_highlights самой catppuccin тоже не подходит:
+    # она мержит группы через tbl_deep_extend("keep", …), и массив style из темы
+    # возвращается назад целиком.
+    #
+    # @markup.link.url намеренно не трогаем — это ссылки в markdown, там
+    # выделение уместно.
+    highlightOverride."@string.special.url".link = "@comment";
+
     # базовые опции редактора
     opts = {
       number = true;
@@ -1446,7 +1463,46 @@ in
       web-devicons.enable = true;   # иконки для дерева/telescope
       nvim-tree.enable = true;      # дерево файлов слева
       lualine.enable = true;        # статусная строка
-      gitsigns.enable = true;       # git-пометки в gutter
+      gitsigns = {
+        enable = true;              # git-пометки в gutter
+        settings = {
+          # Различия ВНУТРИ строки, а не «строка целиком изменена». Без
+          # этого inline-превью (<leader>hi) показывает две почти
+          # одинаковые строки, и отличие приходится искать глазами.
+          word_diff = true;
+          # Тот же бордюр, что у диагностических float'ов выше.
+          preview_config.border = "rounded";
+        };
+      };
+
+      # Оверлей diff по всему файлу: старые строки — виртуальными строками
+      # над новыми, как рисуют дифф ИИ-агенты. У gitsigns для этого есть
+      # show_deleted, но он помечен deprecated и в setup() ИГНОРИРУЕТСЯ с
+      # предупреждением, поэтому постоянный оверлей взят у mini.diff.
+      # Бинд — <leader>ho, группа «Git-ханки».
+      mini = {
+        enable = true;
+        modules.diff = {
+          # style ЯВНО, а не дефолтом. mini.diff выводит его из vim.go.number
+          # на момент setup(), и полагаться на порядок вычисления opts не
+          # стоит. Смысл выбора: signcolumn остаётся за gitsigns, mini.diff
+          # красит колонку номеров — два индикатора не дерутся за место.
+          view.style = "number";
+
+          # Навигация и стейдж уже висят на gitsigns (]c/[c, <leader>hs/hr).
+          # Свой набор gh/gH/]h поставил бы рядом конкурирующие бинды на ту
+          # же работу, поэтому гасится целиком: пустая строка = «не вешать».
+          mappings = {
+            apply = "";
+            reset = "";
+            textobject = "";
+            goto_first = "";
+            goto_prev = "";
+            goto_next = "";
+            goto_last = "";
+          };
+        };
+      };
       comment.enable = true;        # gcc — закомментить строку
       nvim-autopairs.enable = true; # авто-закрытие скобок
       nvim-surround.enable = true;  # cs"' — поменять окружающие кавычки
@@ -1473,6 +1529,12 @@ in
 
       # lazygit прямо в редакторе — тот же, что по абревиатуре `lg` в fish.
       lazygit.enable = true;
+
+      # Отдельное окно side-by-side: слева HEAD, справа рабочее дерево,
+      # список изменённых файлов сбоку. Нужен там, где inline не годится —
+      # когда ревьюится не ханк, а ветка или коммит целиком. Бинды —
+      # группа <leader>g.
+      diffview.enable = true;
 
       # Подсказки по хоткеям. spec задаёт НАЗВАНИЯ групп — без него вместо
       # них показываются безымянные «+prefix».
@@ -1785,6 +1847,195 @@ in
           )
         end,
       }
+
+      -- ---- Declutter: спрятать шум, не трогая файл ----
+      --
+      -- conceal прячет только отрисовку: буфер не меняется, сохранять нечего.
+      -- Комментарии и ключевые слова — независимые флаги, чтобы можно было убрать
+      -- документацию, оставив сигнатуры, и наоборот.
+      local declutter_ns = vim.api.nvim_create_namespace("declutter")
+
+      -- Атрибуты ищутся буквально: `[` и `]` — спецсимволы Lua-паттернов.
+      local declutter_attrs = {
+        "[[nodiscard]]",
+        "[[maybe_unused]]",
+        "[[likely]]",
+        "[[unlikely]]",
+      }
+
+      -- Голые слова — только по границе (%f), иначе `inline` поймается внутри
+      -- `newline`, а `constexpr` внутри `is_constexpr`.
+      local declutter_words = {
+        "constexpr",
+        "consteval",
+        "constinit",
+        "noexcept",
+        "inline",
+      }
+
+      -- Состояние по буферам: { comments = bool, words = bool }.
+      local declutter_state = {}
+
+      -- Разобрать буфер и вернуть парсер. Нужен обеим половинам: комментарии берутся
+      -- запросом по дереву, а слова спрашивают у дерева, не внутри ли они строки.
+      -- Без явного parse() дерева может не быть вовсе, и get_node вернёт nil.
+      local function declutter_parse(buf)
+        local ok, parser = pcall(vim.treesitter.get_parser, buf)
+        if not ok or not parser then return nil end
+        local trees = parser:parse()
+        if not trees then return nil end
+        return parser, trees
+      end
+
+      local function declutter_conceal(buf, row, col, end_col)
+        vim.api.nvim_buf_set_extmark(buf, declutter_ns, row, col, {
+          end_row = row,
+          end_col = end_col,
+          conceal = "",
+        })
+      end
+
+      -- Комментарии берём у treesitter, а не регуляркой: иначе `//` внутри строки
+      -- тоже уедет в невидимое, а многострочный /* */ наоборот не поймается.
+      local function declutter_comments(buf)
+        local parser, trees = declutter_parse(buf)
+        if not parser then return end
+
+        local ok_q, query = pcall(vim.treesitter.query.parse, parser:lang(), "(comment) @c")
+        if not ok_q then return end
+
+        for _, tree in ipairs(trees) do
+          for _, node in query:iter_captures(tree:root(), buf, 0, -1) do
+            local srow, scol, erow, ecol = node:range()
+            local first = vim.api.nvim_buf_get_lines(buf, srow, srow + 1, false)[1] or ""
+
+            if first:sub(1, scol):match("^%s*$") then
+              -- Занимает строки целиком — убираем строки, иначе останутся пустые полосы.
+              for row = srow, erow do
+                vim.api.nvim_buf_set_extmark(buf, declutter_ns, row, 0, { conceal_lines = "" })
+              end
+            elseif srow == erow then
+              -- Хвостовой после кода: гасим вместе с пробелами перед ним.
+              local col = scol
+              while col > 0 and first:sub(col, col):match("%s") do
+                col = col - 1
+              end
+              declutter_conceal(buf, srow, col, ecol)
+            end
+          end
+        end
+      end
+
+      -- Слово внутри строкового литерала или комментария — не ключевое слово, а
+      -- текст. Отличить их регуляркой нельзя, поэтому спрашиваем у treesitter.
+      local function declutter_is_text(buf, row, col)
+        local ok, node = pcall(vim.treesitter.get_node, { bufnr = buf, pos = { row, col } })
+        if not ok or not node then return false end
+        local kind = node:type()
+        return kind:find("string") ~= nil or kind:find("comment") ~= nil or kind:find("char") ~= nil
+      end
+
+      local function declutter_keywords(buf)
+        declutter_parse(buf)
+
+        for row, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
+          local hits = {}
+
+          for _, attr in ipairs(declutter_attrs) do
+            local init = 1
+            while true do
+              local s, e = line:find(attr, init, true)
+              if not s then break end
+              hits[#hits + 1] = { s, e }
+              init = e + 1
+            end
+          end
+
+          for _, word in ipairs(declutter_words) do
+            local init = 1
+            while true do
+              local s, e = line:find("%f[%w_]" .. word .. "%f[^%w_]", init)
+              if not s then break end
+              hits[#hits + 1] = { s, e }
+              init = e + 1
+            end
+          end
+
+          for _, hit in ipairs(hits) do
+            if not declutter_is_text(buf, row - 1, hit[1] - 1) then
+              -- Съедаем пробелы справа, чтобы `[[nodiscard]] constexpr bool`
+              -- схлопнулось в `bool`, а не в `   bool`.
+              local stop = hit[2]
+              while stop < #line and line:sub(stop + 1, stop + 1) == " " do
+                stop = stop + 1
+              end
+              declutter_conceal(buf, row - 1, hit[1] - 1, stop)
+            end
+          end
+        end
+      end
+
+      local function declutter_apply(buf)
+        vim.api.nvim_buf_clear_namespace(buf, declutter_ns, 0, -1)
+
+        local st = declutter_state[buf]
+        if not st then return end
+        if st.comments then declutter_comments(buf) end
+        if st.words then declutter_keywords(buf) end
+      end
+
+      _G.nixvim_declutter = {
+        toggle = function(what)
+          local buf = vim.api.nvim_get_current_buf()
+          local st = declutter_state[buf] or { comments = false, words = false }
+
+          if what == "off" then
+            st.comments, st.words = false, false
+          elseif what == "comments" then
+            st.comments = not st.comments
+          elseif what == "words" then
+            st.words = not st.words
+          else
+            -- all: включить оба, а если уже оба — выключить.
+            local on = not (st.comments and st.words)
+            st.comments, st.words = on, on
+          end
+
+          local any = st.comments or st.words
+          declutter_state[buf] = any and st or nil
+
+          -- 3 — прятать полностью, без замены символом. concealcursor без "n":
+          -- под курсором строка видна как есть, иначе её не отредактировать.
+          vim.wo.conceallevel = any and 3 or 0
+          vim.wo.concealcursor = any and "nc" or ""
+
+          local group = vim.api.nvim_create_augroup("declutter_" .. buf, { clear = true })
+          if any then
+            vim.api.nvim_create_autocmd({ "TextChanged", "InsertLeave" }, {
+              group = group,
+              buffer = buf,
+              callback = function() declutter_apply(buf) end,
+            })
+            vim.api.nvim_create_autocmd("BufWipeout", {
+              group = group,
+              buffer = buf,
+              callback = function() declutter_state[buf] = nil end,
+            })
+          end
+
+          declutter_apply(buf)
+        end,
+      }
+
+      vim.api.nvim_create_user_command("Declutter", function(opts)
+        _G.nixvim_declutter.toggle(opts.args ~= "" and opts.args or "all")
+      end, {
+        nargs = "?",
+        complete = function()
+          return { "comments", "words", "all", "off" }
+        end,
+        desc = "Скрыть комментарии / ключевые слова",
+      })
     '';
 
     # Форматтеры для conform выше. Языковые серверы сюда НЕ добавляются:
@@ -1828,6 +2079,15 @@ in
 
       { key = "<leader>gg"; action = "<cmd>LazyGit<cr>"; options.desc = "LazyGit"; }
 
+      # Diffview — ревью side-by-side. `main...HEAD` (ТРИ точки) — дифф от
+      # точки расхождения, а не от текущего main: то же, что показывает
+      # pull request, и правки, приехавшие в main после ветвления, в него
+      # не попадают.
+      { key = "<leader>gd"; action = "<cmd>DiffviewOpen<cr>";             options.desc = "Diffview: рабочее дерево"; }
+      { key = "<leader>gm"; action = "<cmd>DiffviewOpen main...HEAD<cr>"; options.desc = "Diffview: ветка против main"; }
+      { key = "<leader>gf"; action = "<cmd>DiffviewFileHistory %<cr>";    options.desc = "История текущего файла"; }
+      { key = "<leader>gq"; action = "<cmd>DiffviewClose<cr>";            options.desc = "Закрыть Diffview"; }
+
       # Буферы
       { key = "<S-h>"; action = "<cmd>BufferLineCyclePrev<cr>"; options.desc = "Предыдущий буфер"; }
       { key = "<S-l>"; action = "<cmd>BufferLineCycleNext<cr>"; options.desc = "Следующий буфер"; }
@@ -1858,12 +2118,29 @@ in
       # which-key уже объявлена, новую заводить не нужно.
       { key = "<leader>ch"; action.__raw = "function() _G.nixvim_cpp.switch_source_header() end"; options.desc = "Заголовок ↔ реализация"; }
 
+      # Declutter — обёртка из extraConfigLua выше. Флаги независимые: можно
+      # убрать документацию, оставив сигнатуры, и наоборот.
+      { key = "<leader>cc"; action.__raw = "function() _G.nixvim_declutter.toggle('comments') end"; options.desc = "Скрыть комментарии"; }
+      { key = "<leader>ck"; action.__raw = "function() _G.nixvim_declutter.toggle('words') end";    options.desc = "Скрыть ключевые слова"; }
+      { key = "<leader>cd"; action.__raw = "function() _G.nixvim_declutter.toggle('all') end";      options.desc = "Скрыть и то, и другое"; }
+
       # Git-ханки (gitsigns)
       { key = "]c"; action = "<cmd>Gitsigns next_hunk<cr>"; options.desc = "Следующий ханк"; }
       { key = "[c"; action = "<cmd>Gitsigns prev_hunk<cr>"; options.desc = "Предыдущий ханк"; }
       { key = "<leader>hp"; action = "<cmd>Gitsigns preview_hunk<cr>"; options.desc = "Показать ханк"; }
       { key = "<leader>hs"; action = "<cmd>Gitsigns stage_hunk<cr>";   options.desc = "Застейджить ханк"; }
       { key = "<leader>hr"; action = "<cmd>Gitsigns reset_hunk<cr>";   options.desc = "Откатить ханк"; }
+
+      # Старый код на месте, а не плавающим окном поверх кода, как <leader>hp
+      # выше. hi — один ханк под курсором (gitsigns), ho — весь файл разом
+      # (mini.diff, переключатель).
+      { key = "<leader>hi"; action = "<cmd>Gitsigns preview_hunk_inline<cr>"; options.desc = "Старый код ханка на месте"; }
+      { key = "<leader>hw"; action = "<cmd>Gitsigns toggle_word_diff<cr>";    options.desc = "Различия по словам"; }
+      {
+        key = "<leader>ho";
+        action.__raw = "function() require('mini.diff').toggle_overlay() end";
+        options.desc = "Оверлей diff по всему файлу";
+      }
     ];
   };
 }
