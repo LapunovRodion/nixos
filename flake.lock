@@ -23,6 +23,22 @@
         "type": "github"
       }
     },
+    "archify": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789137587,
+        "narHash": "sha256-3ysD9U7J1wd3aG23I9rK5gFqKdk+FdXWnzWvNCzeO1E=",
+        "owner": "tt-a1i",
+        "repo": "archify",
+        "rev": "c1443b31b496eebf4a68bf83151816c955ddb796",
+        "type": "github"
+      },
+      "original": {
+        "owner": "tt-a1i",
+        "repo": "archify",
+        "type": "github"
+      }
+    },
     "claude-desktop": {
       "inputs": {
         "nixpkgs": [
@@ -285,6 +301,7 @@
     "root": {
       "inputs": {
         "agenix": "agenix",
+        "archify": "archify",
         "claude-desktop": "claude-desktop",
         "home-manager": "home-manager_2",
         "nixpkgs": "nixpkgs",
@@ -296,6 +313,7 @@
         "ouch-yazi": "ouch-yazi",
         "starship-yazi": "starship-yazi",
         "torlink": "torlink",
+        "xwayland-satellite": "xwayland-satellite",
         "yazi-plugins": "yazi-plugins",
         "zen-browser": "zen-browser"
       }
@@ -365,6 +383,28 @@
       "original": {
         "owner": "baairon",
         "repo": "torlink",
+        "type": "github"
+      }
+    },
+    "xwayland-satellite": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "rust-overlay": []
+      },
+      "locked": {
+        "lastModified": 1788991189,
+        "narHash": "sha256-0TxfMgqW0/BLD4M942c5DCKYrtPvzsPJwvdcco4LQUM=",
+        "owner": "Supreeeme",
+        "repo": "xwayland-satellite",
+        "rev": "add2795134593faafce60e404a0a75df68e9ee0c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Supreeeme",
+        "repo": "xwayland-satellite",
+        "rev": "add2795134593faafce60e404a0a75df68e9ee0c",
         "type": "github"
       }
     },

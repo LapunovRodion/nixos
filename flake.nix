@@ -69,6 +69,21 @@
       flake = false;
     };
 
+    # archify — скилл для Claude Code: описание системы (или код) → валидированная
+    # интерактивная HTML-диаграмма. Штатно ставится императивно, копией каталога
+    # в ~/.claude/skills (`npx skills add tt-a1i/archify -g`); вместо этого пин
+    # здесь, а симлинк кладёт home.nix.
+    #
+    # Не flake и не npm-пакет: runtime-зависимостей у скилла нет вовсе
+    # (ajv/parse5/saxes/simple-icons — только devDependencies, для генераторов и
+    # тестов), поэтому каталог прямо из store работает как есть, без node_modules.
+    #
+    # Обновление: nix flake update archify → rebuild.
+    archify = {
+      url = "github:tt-a1i/archify";
+      flake = false;
+    };
+
     # nixvim — neovim, целиком описанный на nix (декларативно, в git).
     nixvim = {
       url = "github:nix-community/nixvim";
@@ -101,6 +116,30 @@
     torlink = {
       url = "github:baairon/torlink";
       inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # xwayland-satellite из main, а не из nixpkgs. В 0.8.2 (последний релиз, он
+    # же в nixpkgs) меню-бар Steam — Steam/View/Friends/Games/Help и попап
+    # «Add a Game» — закрывается сам через ~35 мс после открытия: сателлит
+    # фокусирует override-redirect popup'ы, а клиент Steam с сентябрьского
+    # обновления в ответ отдаёт фокус обратно главному окну. Под интегрированным
+    # XWayland (KDE) и под rootful Xwayland тот же Steam работает нормально.
+    # Апстрим: issue #489, фикс — PR #494 («never focus override-redirect
+    # popups; offer WM_TAKE_FOCUS when advertised»), в релиз ещё не попал,
+    # поэтому пин ровно на его merge-коммит.
+    #
+    # УДАЛИТЬ (вместе с подменой в overlay в modules/common.nix), когда в
+    # nixpkgs приедет 0.8.3:  nix eval nixpkgs#xwayland-satellite.version
+    #
+    # Вход нужен ТОЛЬКО как пин исходников: собирается всё равно derivation'ом
+    # из nixpkgs, у которого подменён src (почему — в overlay в common.nix).
+    # Зато ревизия живёт в flake.lock и свой sha256 на src добывать не нужно.
+    # rust-overlay апстриму нужен только для devShell — отключаем через
+    # follows = "", как он сам и советует.
+    xwayland-satellite = {
+      url = "github:Supreeeme/xwayland-satellite/add2795134593faafce60e404a0a75df68e9ee0c";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.rust-overlay.follows = "";
     };
   };
 

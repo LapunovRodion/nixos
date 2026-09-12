@@ -99,6 +99,12 @@ let
   # остальная система работает напрямую.
   # Именно http-прокси, а не socks5: он резолвит имена на стороне сервера,
   # поэтому не упирается в отсутствие IPv6 у VPN-сервера.
+  #
+  # Заодно здесь глушится самообновление скилла archify (см. home.nix): его
+  # версия пришпилена flake.lock, а собственная проверка в лучшем случае
+  # бесполезна, в худшем — предложит агенту выполнить `npx skills add` поверх
+  # каталога в /nix/store, доступного только на чтение. Переменная нужна ровно
+  # внутри сессий claude, поэтому живёт в обёртке, а не в sessionVariables.
   claude-code-vpn = pkgs.symlinkJoin {
     name = "claude-code-vpn";
     paths = [ pkgs.claude-code ];
@@ -107,7 +113,8 @@ let
       wrapProgram $out/bin/claude \
         --set HTTPS_PROXY "http://127.0.0.1:3128" \
         --set HTTP_PROXY  "http://127.0.0.1:3128" \
-        --set NO_PROXY    "localhost,127.0.0.1,::1"
+        --set NO_PROXY    "localhost,127.0.0.1,::1" \
+        --set ARCHIFY_UPDATE_CHECK_DISABLED "1"
     '';
   };
 
@@ -286,6 +293,7 @@ in
   # а не из основного nixpkgs. Так CLI обновляется независимо (nix flake
   # update nixpkgs-cc), не таща за собой весь unstable. claude-code-vpn
   # в let-блоке оборачивает уже этот, свежий, pkgs.claude-code.
+  # Вторым пунктом — xwayland-satellite из своего flake-входа (см. ниже).
   nixpkgs.overlays = [
     (final: prev:
       let
@@ -300,6 +308,30 @@ in
         # через overrideAttrs уже нельзя «в лоб» — installPhase распаковывает его
         # через unzstd, так что url должен вести на .zst, а не на голый бинарь.
         claude-code = ccPkgs.claude-code;
+
+        # xwayland-satellite из main: в релизном 0.8.2 меню-бар Steam
+        # закрывается сразу после открытия. Полное объяснение и условие
+        # удаления — у одноимённого input в flake.nix.
+        #
+        # Берётся derivation из nixpkgs с подменённым src, а НЕ готовый пакет
+        # из flake апстрима: тот собирает через cargoLock.lockFile, то есть
+        # fetchCrate по каждому крейту — а это https://crates.io/api/v1/...,
+        # который на UA nix'ового curl отвечает 403 (index.crates.io и
+        # static.crates.io при этом доступны, проверено). fetchCargoVendor
+        # ходит именно туда, поэтому сборка проходит. src — сам flake-вход,
+        # так что ревизия пиннится в flake.lock и своего sha256 не требует.
+        # cargoHash из nixpkgs не подошёл бы: Cargo.lock в main изменился.
+        xwayland-satellite = prev.xwayland-satellite.overrideAttrs (old: {
+          version = "0.8.2-unstable-2026-09-09";   # add2795, merge PR #494
+          src = inputs.xwayland-satellite;
+          cargoDeps = prev.rustPlatform.fetchCargoVendor {
+            src = inputs.xwayland-satellite;
+            hash = "sha256-s1gl9eR6Mt2QLrhfcowstPFjzwE/lz4PJhJzWYHoIHg=";
+          };
+          meta = old.meta // {
+            changelog = "https://github.com/Supreeeme/xwayland-satellite/pull/494";
+          };
+        });
       })
   ];
 
@@ -402,6 +434,10 @@ in
     vim
     wget
     uv                    # python-тулчейн и раннер (uvx) для проектов
+    # Нужен скиллу archify (см. home.nix): SKILL.md велит агенту звать
+    # `node bin/archify.mjs`, а claude-code свой node наружу не отдаёт.
+    # Зависимостей у скилла нет, поэтому голого интерпретатора хватает.
+    nodejs_22
     # niri окружение
     fuzzel               # лаунчер
     kitty                # терминал (единственный; вместо alacritty/rio)
