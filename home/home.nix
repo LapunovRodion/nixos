@@ -291,6 +291,32 @@ in
     // восстановление прошлой сессии при запуске.
     user_pref("browser.startup.homepage", "https://server.taila27ec6.ts.net:8445");
       '';
+
+      # =============================================================
+      # Градиент боковой панели — ОТДЕЛЬНЫМ файлом рядом с userChrome.css,
+      # а не его содержимым.
+      #
+      # chrome/userChrome.css принадлежит community-шаблону noctalia
+      # zen-browser: его apply.sh начинается с `touch "$user_chrome"` под
+      # set -euo pipefail, так что read-only симлинк в /nix/store на этом
+      # месте уронил бы хук целиком — Zen остался бы вообще без темы.
+      # Зато содержимое файла шаблон сохраняет: sed удаляет из него только
+      # строки с `zen-browser/zen-userChrome.css` и дописывает свою
+      # @import сверху.
+      #
+      # Поэтому один раз РУКАМИ в chrome/userChrome.css второй строкой:
+      #   @import "noctalia-gradient.css";
+      # (путь относительный, резолвится от каталога chrome/; должен идти
+      # ПОСЛЕ строки noctalia — см. шапку zen/gradient.css). Шаг
+      # одноразовый на машину и всё равно попадает в ручную настройку
+      # профиля: пока zenProfileDir = null, профиля нет вовсе.
+      #
+      # Цвета в самом CSS не подставляются: там var(--primary) и
+      # var(--tertiary) из палитры, которую объявляет импорт noctalia
+      # выше по каскаду. Своего шаблона в noctalia.nix не нужно.
+      # =============================================================
+      ".config/zen/${osConfig.local.zenProfileDir}/chrome/noctalia-gradient.css".source =
+        ./zen/gradient.css;
     })
   ];
 
