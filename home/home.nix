@@ -5,7 +5,7 @@
 let
   # Соответствие ЙЦУКЕН ↔ QWERTY. Нужно там, где приложение ловит ОДИНОЧНУЮ
   # клавишу без модификатора и xkb помочь не может: normal mode в nvim,
-  # биндинги yazi, клавиши после префикса в tmux, буквенные бинды mpv.
+  # биндинги yazi, буквенные бинды mpv.
   # Хоткеи с Ctrl/Alt/Super
   # к этой таблице отношения не имеют — их чинит раскладка из home/xkb.
   kbd = import ./keyboard-ru.nix { inherit lib; };
@@ -31,66 +31,6 @@ let
         else e // { on = if builtins.isList e.on then ru else builtins.head ru; };
     in
     entries: lib.filter (e: e != null) (map swap entries);
-
-  # ---- зеркальные бинды tmux ----
-  #
-  # Префикс Ctrl-a чинит xkb, а вот следующая клавиша идёт БЕЗ модификатора,
-  # и вместо `c` в tmux прилетает `с`. Дублировать бинды руками плохо: их
-  # десятки, часть заводит сам tmux, часть — плагины, и список сразу поедет.
-  #
-  # Поэтому зеркала снимаются с уже загруженной таблицы: `list-keys` печатает
-  # готовые команды bind-key, awk подменяет в них клавишу на кириллическую,
-  # `source-file` скармливает результат обратно. Любой новый бинд —
-  # хоть свой, хоть плагинный — зеркалится сам.
-  tmuxMirrorAwk = pkgs.writeText "tmux-mirror-ru.awk" ''
-    BEGIN {
-      ${lib.concatMapStrings (p: ''
-        map["${lib.escape [ "\\" "\"" ] p.en}"] = "${p.ru}";
-      '') kbd.mirrorPairs}
-    }
-
-    # Строка вида: bind-key [-r] [-N "..."] -T <таблица> <клавиша> <команда...>
-    # Флаги идут ДО -T, команда — после клавиши, поэтому первого вхождения
-    # " -T " достаточно, чтобы отделить хвост и не разбирать флаги.
-    {
-      i = index($0, " -T ")
-      if (i == 0) next
-
-      head = substr($0, 1, i + 3)
-      rest = substr($0, i + 4)
-
-      if (match(rest, /^ *[^ ]+ +/) == 0) next
-      tbl  = substr(rest, RSTART, RLENGTH)
-      rest = substr(rest, RSTART + RLENGTH)
-
-      if (match(rest, /^[^ ]+/) == 0) next
-      key  = substr(rest, RSTART, RLENGTH)
-      tail = substr(rest, RSTART + RLENGTH)
-
-      # Клавиши не из таблицы (F1, C-a, Up) пропускаем молча: им зеркало
-      # не нужно, их либо не трогает раскладка, либо чинит xkb.
-      if (key in map) print head tbl map[key] tail
-    }
-  '';
-
-  tmuxMirror = pkgs.writeShellScript "tmux-mirror-ru" ''
-    set -eu
-
-    # tmux НЕ пинним из pkgs: скрипт зовётся через run-shell уже живым
-    # сервером, и обращаться надо именно к нему, а не к своей копии.
-    out=$(${pkgs.coreutils}/bin/mktemp)
-    trap '${pkgs.coreutils}/bin/rm -f "$out"' EXIT
-
-    # prefix — бинды после Ctrl-a, copy-mode-vi — навигация в буфере
-    # прокрутки. Таблица root (bind -n) не нужна: там всё с модификаторами.
-    for table in prefix copy-mode-vi; do
-      tmux list-keys -T "$table" | ${pkgs.gawk}/bin/awk -f ${tmuxMirrorAwk} >> "$out"
-    done
-
-    if [ -s "$out" ]; then
-      tmux source-file "$out"
-    fi
-  '';
 
   # ---- зеркальные бинды mpv ----
   #
@@ -180,8 +120,8 @@ in
   #
   # Проблема: в кириллической группе Ctrl+ф — это Ctrl+Cyrillic_ef, и
   # приложение такой хоткей не узнаёт. Свои бинды niri переживает (он ищет
-  # латинский кейсим по всем группам), а вот GTK/Qt/Electron, префикс tmux
-  # и биндинги fish/readline ломаются все разом.
+  # латинский кейсим по всем группам), а вот GTK/Qt/Electron, префикс
+  # мультиплексора (Ctrl+a) и биндинги fish/readline ломаются все разом.
   #
   # Решение: своя раскладка ru-latin, где на 3-4 уровнях лежит латиница, и
   # свой тип клавиши, включающий эти уровни по Ctrl/Alt/Super. Подробности —
@@ -1035,259 +975,76 @@ in
         -attenuate 0.03 +noise Gaussian -depth 8 png:"$out"
     '';
 
-  # --- tmux ---
-  # Пакет объявлен в systemPackages (modules/common.nix), здесь только
-  # конфиг — ровно та же схема, что у kitty выше.
+  # --- zellij: мультиплексор ---
+  # Здесь и пакет, и конфиг — в отличие от kitty/mpv, у которых пакет лежит в
+  # systemPackages. Почему так, расписано на месте удалённого tmux в
+  # modules/common.nix: модуль ставит пакет сам и им же зовёт автозапуск.
   #
-  # Берётся ради одного: сессия переживает закрытие терминала. Делить
-  # экран на панели по-хорошему незачем (этим занят niri), но раз уж
-  # панели есть, биндам стоит быть привычными — отсюда всё ниже.
-  programs.tmux = {
+  # Берётся ради того же, ради чего стоял tmux: сессия переживает закрытие
+  # терминала. Делить экран на панели по-хорошему незачем (этим занят niri),
+  # но раз панели есть, биндам стоит остаться привычными — отсюда всё ниже.
+  #
+  # Чем закрыты плагины, которые висели на tmux:
+  #   tmux-floax       → ToggleFloatingPanes, штатное всплывающее окно
+  #   tmux-sessionx    → zellij:session-manager, встроенный плагин
+  #   prefix-highlight → режим и так нарисован в строке статуса
+  #   tmux-which-key   → подсказки по текущему режиму там же
+  # То есть плагинов не осталось совсем, и вместе с ними — истории про
+  # @tmux-which-key-disable-autobuild и запись в /nix/store.
+  programs.zellij = {
     enable = true;
 
-    # Заводской префикс Ctrl-b требует тянуться мизинцем через весь ряд.
-    # Ctrl-a ближе; модуль на смену префикса сам дописывает
-    # `bind C-a send-prefix` (HM, modules/programs/tmux.nix:99), поэтому
-    # «в начало строки» в fish внутри tmux — это Ctrl-a Ctrl-a.
-    prefix = "C-a";
+    # Автозапуск при открытии kitty. Скрипт генерит сам zellij
+    # (`setup --generate-auto-start fish`), и он смотрит на $ZELLIJ — шелл
+    # ВНУТРИ сессии вторую не заводит, рекурсии нет. Mod+E в niri запускает
+    # `kitty -e yazi` в обход fish, туда автозапуск не попадает и не должен.
+    enableFishIntegration = true;
 
-    # Окна и панели нумеруются с 1: на цифровом ряду 1 идёт первой,
-    # а 0 стоит за 9 — с нуля попадать неудобно.
-    baseIndex = 1;
+    # Прицепиться к живой сессии, а не поднимать вторую на каждое окно.
+    # Именно это делало `tmux a`, только руками.
+    attachExistingSession = true;
 
-    # copy-mode с биндами vim — как в nixvim ниже, чтобы не переучиваться.
-    # customPaneNavigationAndResize действует ТОЛЬКО при keyMode = "vi"
-    # (там же, :74) и даёт hjkl на переход между панелями, HJKL на размер.
-    keyMode = "vi";
-    customPaneNavigationAndResize = true;
-    resizeAmount = 5;
+    # Выход из zellij (и detach тоже) закрывает окно kitty. Иначе после
+    # Ctrl-a d остаётся голый fish снаружи сессии, из которого следующая
+    # команда уедет мимо мультиплексора.
+    exitShellOnExit = true;
 
-    mouse = true;         # колесо — скроллбек, клик — панель, драг границы — размер
-    focusEvents = true;   # vim узнаёт про потерю фокуса, autoread оживает
-    historyLimit = 50000; # заводские 2000 строк кончаются на первом же сборочном логе
+    settings = {
+      # Встроенная тема zellij, фиксированная — за обоями НЕ едет.
+      # Раньше здесь была своя themes.noctalia на 256-цветных индексах
+      # (color0..15 кладёт в терминал noctalia): работала, но палитра
+      # менялась вместе с обоями и мультиплексор каждый раз выглядел
+      # по-новому. Фикс дешевле, чем ещё один шаблон и post_hook.
+      #
+      # Другие встроенные на ту же тёмную нишу: catppuccin-mocha,
+      # nightfox, gruvbox-dark, dracula, nord — вписываются сюда же,
+      # больше менять нечего. Полный список: `zellij setup --dump-config`.
+      theme = "tokyo-night-dark";
 
-    # Заводские 500 мс — это пауза после Esc, в vim она ощущается как
-    # залипание. 0 не ставлю: по ssh при нуле рвутся escape-последовательности.
-    escapeTime = 10;
+      # Wayland-буфер. Было copy-pipe-and-cancel "wl-copy" в copy-mode-vi.
+      copy_command = "wl-copy";
+      # Копирует `y`, а не само выделение — как в vi-режиме tmux. Иначе
+      # любое протаскивание мышью затирало бы буфер.
+      copy_on_select = false;
 
-    # Без этого TERM внутри tmux = "screen", и подсветка деградирует до 8 цветов.
-    terminal = "tmux-256color";
+      # Было historyLimit = 50000.
+      scroll_buffer_size = 50000;
 
-    # =========================================================
-    # Плагины.
-    #
-    # ПОРЯДОК В ИТОГОВОМ ФАЙЛЕ (HM, modules/programs/tmux.nix:360) —
-    # mkBefore(база) → плагины → mkAfter(extraConfig). То есть всё, что
-    # плагин должен УВИДЕТЬ при загрузке, обязано лежать в его собственном
-    # extraConfig: он идёт прямо перед его run-shell. Из общего extraConfig
-    # ниже плагин уже ничего не прочитает — тот выполняется последним.
-    # На этом ловится prefix-highlight, см. его блок.
-    #
-    # Имена пакетов обязаны начинаться на "tmuxplugin", иначе модуль роняет
-    # eval по assertion (там же, :118).
-    # =========================================================
-    plugins = with pkgs.tmuxPlugins; [
-      # ---- floax: всплывающая панель поверх окна ----
-      {
-        plugin = tmux-floax;
-        extraConfig = ''
-          # Заводской бинд p ЗАТЕНЯЕТ previous-window. Оставлен как есть:
-          # так написано во всех гайдах по плагину, а на предыдущее окно
-          # у нас и так повешен Alt-H без префикса.
-          set -g @floax-bind 'p'
-          set -g @floax-bind-menu 'P'
-          set -g @floax-width '80%'
-          set -g @floax-height '80%'
-          # Панель открывается в каталоге текущей панели, а не в $HOME.
-          set -g @floax-change-path 'true'
-          # Плагин принимает ТОЛЬКО восемь базовых имён (black..white), не hex —
-          # то есть цвет берётся из палитры терминала, как у всего остального.
-          set -g @floax-border-color 'blue'
-          set -g @floax-text-color 'blue'
-        '';
-      }
+      # Рамки вокруг панелей не нужны: границы рисует niri, а внутри одного
+      # окна панелей обычно одна-две. Плюс возвращает две строки высоты.
+      pane_frames = false;
 
-      # ---- sessionx: переключалка сессий на fzf ----
-      {
-        plugin = tmux-sessionx;
-        extraConfig = ''
-          # O, а не o: строчная занята под next-pane.
-          set -g @sessionx-bind 'O'
-          # Показывать в списке не только живые сессии, но и каталоги из базы
-          # zoxide (programs.zoxide ниже) — прыжок в проект сразу создаёт сессию.
-          set -g @sessionx-zoxide-mode 'on'
-          set -g @sessionx-preview-enabled 'true'
-          set -g @sessionx-preview-ratio '55%'
-          set -g @sessionx-window-width '80%'
-          set -g @sessionx-window-height '75%'
-          # Текущую сессию из списка убрать — прыгать в себя незачем.
-          set -g @sessionx-filter-current 'true'
-        '';
-      }
-
-      # ---- which-key: всплывающая шпаргалка по биндам ----
-      {
-        plugin = tmux-which-key;
-        extraConfig = ''
-          # ОБЯЗАТЕЛЬНО. Без этого плагин при старте копирует config.yaml и
-          # init.tmux к себе в каталог установки — то есть в /nix/store, куда
-          # писать нельзя, и падает. С флагом он уходит в
-          #   ~/.config/tmux/plugins/tmux-which-key/config.yaml   (меню)
-          #   ~/.local/share/tmux/plugins/tmux-which-key/init.tmux (сборка)
-          # Апстрим держит эту опцию ровно для «immutable or declarative
-          # operating systems» (README, раздел @tmux-which-key-xdg-enable).
-          #
-          # Оба файла — ИЗМЕНЯЕМОЕ состояние, nix ими не управляет: они
-          # создаются из примеров при первом запуске плагина.
-          set -g @tmux-which-key-xdg-enable 1
-
-          # ОБЯЗАТЕЛЬНО ВТОРОЕ. Плагин копирует шаблоны из /nix/store
-          # обычным `cp`, а тот сохраняет права источника — то есть 0444.
-          # Дальше автосборка меню зовёт build.py, который открывает
-          # init.tmux на запись, и падает на своей же копии:
-          #   PermissionError: [Errno 13] .../init.tmux
-          # а вместе с ним валится весь plugin.sh.tmux (там `set -e`), и
-          # бинд на Space не доходит до tmux вообще.
-          #
-          # Автосборка нужна только чтобы пересобрать меню из config.yaml.
-          # Скопированный init.tmux уже готовый и рабочий, так что просто
-          # выключаем её — плагин ограничивается source-file, а чтение
-          # read-only файла никого не смущает.
-          #
-          # Цена: правки в config.yaml сами по себе ни на что не влияют.
-          # Если понадобится своё меню — снять права-только-чтение и
-          # прогнать build.py руками:
-          #   chmod u+w ~/.local/share/tmux/plugins/tmux-which-key/init.tmux
-          #   chmod u+w ~/.config/tmux/plugins/tmux-which-key/config.yaml
-          # либо собрать init.tmux в nix и положить через xdg.dataFile.
-          set -g @tmux-which-key-disable-autobuild 1
-        '';
-      }
-
-      # ---- prefix-highlight: индикатор нажатого префикса ----
-      {
-        plugin = prefix-highlight;
-        extraConfig = ''
-          set -g @prefix_highlight_fg 'colour0'
-          set -g @prefix_highlight_bg 'colour4'
-          set -g @prefix_highlight_prefix_prompt ' ^A '
-          # Заодно подсвечивать copy-mode: видно, что ты не в оболочке и
-          # клавиши уходят не туда, куда привык.
-          set -g @prefix_highlight_show_copy_mode 'on'
-          set -g @prefix_highlight_copy_mode_attr 'fg=colour0,bg=colour3'
-          set -g @prefix_highlight_copy_prompt ' COPY '
-          # Когда префикс не нажат — пусто, чтобы строка не дёргалась.
-          set -g @prefix_highlight_empty_prompt ""
-
-          # status-left стоит ЗДЕСЬ, а не в общем extraConfig, и это не каприз.
-          # Плагин не добавляет формат от себя: он читает текущее значение
-          # status-left, подменяет в нём литерал #{prefix_highlight} на готовую
-          # строку и записывает обратно (prefix_highlight.tmux:97). Значит
-          # плейсхолдер обязан существовать ДО его run-shell. Общий extraConfig
-          # выполняется после плагинов и просто затёр бы результат.
-          set -g status-left "#[fg=colour4,bold] #S #[default]#{prefix_highlight}"
-        '';
-      }
-    ];
-
-    extraConfig = ''
-      # ---- truecolor ----
-      # tmux-256color объявляет 256 цветов; RGB добавляется оверрайдом на
-      # ВНЕШНИЙ терминал, а не на внутренний. kitty представляется как
-      # xterm-kitty; вторая запись — на случай ssh с чужой машины.
-      set -ga terminal-overrides ",xterm-kitty:RGB,xterm-256color:RGB"
-
-      # ---- сплиты ----
-      # | и - вместо % и ": символ совпадает с направлением разреза.
-      # -c "#{pane_current_path}" — новая панель открывается в текущем
-      # каталоге, а не в $HOME (заводское поведение, которое всех бесит).
-      unbind '"'
-      unbind %
-      bind | split-window -h -c "#{pane_current_path}"
-      bind - split-window -v -c "#{pane_current_path}"
-      bind c new-window -c "#{pane_current_path}"
-
-      # ---- окна ----
-      # Закрыли окно посередине — остальные перенумеровываются, дырок в
-      # ряду 1..9 не остаётся.
-      set -g renumber-windows on
-      # Соседнее окно без префикса, одной комбинацией.
-      bind -n M-H previous-window
-      bind -n M-L next-window
-
-      # ---- буфер обмена ----
-      # Выделение как в vim: v — начать, y — скопировать. copy-pipe отдаёт
-      # выделенное в wl-copy (wl-clipboard в systemPackages), то есть в
-      # СИСТЕМНЫЙ буфер, а не только во внутренний буфер tmux.
-      bind -T copy-mode-vi v send-keys -X begin-selection
-      bind -T copy-mode-vi y send-keys -X copy-pipe-and-cancel "wl-copy"
-      # Мышью: отпустили кнопку — скопировалось, но copy-mode не закрылся и
-      # вид не прыгнул в конец скроллбека (в этом весь смысл -no-clear).
-      bind -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-no-clear "wl-copy"
-      # OSC52: тот же буфер работает, когда tmux крутится на УДАЛЁННОЙ машине
-      # по ssh — там wl-copy нет, последовательность уходит в kitty, и уже он
-      # кладёт текст в wayland-буфер. Локально дублирует wl-copy, не мешает.
-      set -g set-clipboard on
-
-      # ---- перезагрузка конфига ----
-      # Сам файл — read-only симлинк в /nix/store, правки идут через rebuild.
-      # Бинд нужен, чтобы подхватить новый конфиг в уже живой сессии, не
-      # убивая её.
-      bind r source-file ~/.config/tmux/tmux.conf \; display "конфиг перечитан"
-
-      # ---- статус-строка ----
-      # Цвета — номерами ANSI-палитры (colour0..15), ни одного hex: строка
-      # едет за темой kitty, которую красит noctalia по обоям. Тот же приём,
-      # что у bat, fzf, delta и starship выше.
-      # bg=default — фон терминала, то есть прозрачность от niri сохраняется.
-      set -g status-position bottom
-      set -g status-style "bg=default,fg=colour7"
-      set -g status-interval 5
-      # status-left задаётся НЕ здесь, а в блоке плагина prefix-highlight
-      # выше — иначе подстановка плейсхолдера была бы затёрта, см. там же.
-      # Длину поднял с 30: индикатор префикса добавляет ширины.
-      set -g status-left-length 60
-      set -g status-right "#[fg=colour8]%H:%M "
-      set -g window-status-format " #I:#W "
-      set -g window-status-current-format " #I:#W "
-      set -g window-status-current-style "fg=colour4,bold"
-      set -g pane-border-style "fg=colour8"
-      set -g pane-active-border-style "fg=colour4"
-      set -g message-style "bg=colour4,fg=colour0"
-      # Заводская 750 мс — сообщение исчезает раньше, чем успеваешь прочесть.
-      set -g display-time 2000
-
-      # ---- раскладка ----
-      # Зеркалит все бинды таблиц prefix и copy-mode-vi в кириллицу, чтобы
-      # Ctrl-a c и Ctrl-a с делали одно и то же. Стоит В САМОМ КОНЦЕ и это
-      # важно: снимок таблицы берётся на момент запуска, всё, что биндится
-      # позже, в зеркало не попадёт. extraConfig модуль кладёт после
-      # плагинов (HM, modules/programs/tmux.nix:360), так что их бинды
-      # уже на месте. Подробности — у tmuxMirror в начале файла.
-      run-shell ${tmuxMirror}
-    '';
+      # То, ради чего раньше брался smug: раскладка вкладок и панелей
+      # сохраняется на диск и поднимается после ребута. Разница с smug'ом в
+      # том, что описание больше не лежит в git — оно снимается с живой
+      # сессии. Мне хватает: сессия одна, и она про этот же репозиторий.
+      session_serialization = true;
+    };
   };
-
-  # --- smug: сессии tmux из описания ---
-  # Пакет — в systemPackages (modules/common.nix), здесь только конфиг:
-  # ровно та же схема, что у tmux выше и у kitty.
-  #
-  # smug ищет сессии в ~/.config/smug/*.yml. Кроме того он подхватывает
-  # `.smug.yml` из ТЕКУЩЕГО каталога — то есть описание сессии можно класть
-  # прямо в репозиторий проекта и в этот флейк не тащить вовсе.
-  #
-  # Симлинком кладётся ТОЛЬКО сам yml, а каталог ~/.config/smug остаётся
-  # настоящим и на запись. Это важно: туда smug пишет smug.log при запуске
-  # с флагом -d, и туда же можно бросить одноразовый конфиг мимо git.
-  #
-  # TEMPLATE.yml.example, лежащий рядом в home/smug/, намеренно НЕ подключён:
-  # это шпаргалка по формату для правок здесь, в рабочем каталоге smug ей
-  # делать нечего.
-  xdg.configFile."smug/nixos.yml".source = ./smug/nixos.yml;
 
   # --- mpv: видеоплеер ---
   # Пакет — в systemPackages (modules/common.nix), здесь только конфиг:
-  # ровно та же схема, что у kitty, tmux и smug выше.
+  # ровно та же схема, что у kitty выше.
   programs.mpv = {
     enable = true;
 
