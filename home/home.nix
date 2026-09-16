@@ -994,20 +994,9 @@ in
   programs.zellij = {
     enable = true;
 
-    # Автозапуск при открытии kitty. Скрипт генерит сам zellij
-    # (`setup --generate-auto-start fish`), и он смотрит на $ZELLIJ — шелл
-    # ВНУТРИ сессии вторую не заводит, рекурсии нет. Mod+E в niri запускает
-    # `kitty -e yazi` в обход fish, туда автозапуск не попадает и не должен.
-    enableFishIntegration = true;
-
-    # Прицепиться к живой сессии, а не поднимать вторую на каждое окно.
-    # Именно это делало `tmux a`, только руками.
-    attachExistingSession = true;
-
-    # Выход из zellij (и detach тоже) закрывает окно kitty. Иначе после
-    # Ctrl-a d остаётся голый fish снаружи сессии, из которого следующая
-    # команда уедет мимо мультиплексора.
-    exitShellOnExit = true;
+    # Без автозапуска: kitty открывает голый fish, zellij — руками, когда
+    # нужен. enableFishIntegration по умолчанию true и вписывает автозапуск.
+    enableFishIntegration = false;
 
     settings = {
       # Встроенная тема zellij, фиксированная — за обоями НЕ едет.
@@ -1023,9 +1012,9 @@ in
 
       # Wayland-буфер. Было copy-pipe-and-cancel "wl-copy" в copy-mode-vi.
       copy_command = "wl-copy";
-      # Копирует `y`, а не само выделение — как в vi-режиме tmux. Иначе
-      # любое протаскивание мышью затирало бы буфер.
-      copy_on_select = false;
+      # Копирует само выделение мышью. Отдельного `y` в zellij нет, так что
+      # при false копировать было просто нечем.
+      copy_on_select = true;
 
       # Было historyLimit = 50000.
       scroll_buffer_size = 50000;
@@ -1039,7 +1028,26 @@ in
       # том, что описание больше не лежит в git — оно снимается с живой
       # сессии. Мне хватает: сессия одна, и она про этот же репозиторий.
       session_serialization = true;
+
+      # Без всплывающих окон при старте: совет дня и «что нового» после
+      # обновления версии.
+      show_startup_tips = false;
+      show_release_notes = false;
     };
+
+    # Вкладка по номеру одним аккордом, без захода в режим Ctrl+t.
+    # Alt+цифры не заняты ни zellij, ни fish, ни niri. Сырым KDL, а не через
+    # settings: генератор toKDL неудобно выражает `bind "Alt 1"`. Штатные
+    # бинды остаются — блок keybinds без clear-defaults только дополняет их.
+    extraConfig = ''
+      keybinds {
+          shared_except "locked" {
+              ${lib.concatMapStrings (n: ''
+                bind "Alt ${toString n}" { GoToTab ${toString n}; }
+              '') (lib.range 1 9)}
+          }
+      }
+    '';
   };
 
   # --- mpv: видеоплеер ---
@@ -1269,6 +1277,7 @@ in
       web-devicons.enable = true;   # иконки для дерева/telescope
       nvim-tree.enable = true;      # дерево файлов слева
       lualine.enable = true;        # статусная строка
+      render-markdown.enable = true; # markdown с форматированием прямо в буфере
       gitsigns = {
         enable = true;              # git-пометки в gutter
         settings = {
@@ -1844,6 +1853,14 @@ in
       })
     '';
 
+    # Контекстное меню по ПКМ (nvzone/menu). volt — его UI-библиотека,
+    # minty — пипетка для пункта «Color Picker» из стандартного меню.
+    extraPlugins = with pkgs.vimPlugins; [
+      nvzone-volt
+      nvzone-menu
+      nvzone-minty
+    ];
+
     # Форматтеры для conform выше. Языковые серверы сюда НЕ добавляются:
     # их пакеты nixvim подставляет сам по plugins.lsp.servers.*.
     # По той же причине здесь нет clang-format: он лежит в clang-tools,
@@ -1875,6 +1892,25 @@ in
       # сам использует Esc для возврата на шаг назад. После <Esc><Esc>
       # работают обычные <C-h>/<C-j> выше.
       { mode = "t"; key = "<Esc><Esc>"; action = "<C-\\><C-n>"; options.desc = "Выйти из терминала"; }
+
+      # ---- Меню по ПКМ ----
+      # Сначала штатный <RightMouse> ставит курсор туда, где кликнули, —
+      # иначе «К определению» сработает для слова под старым курсором.
+      # В дереве файлов открывается его собственное меню.
+      {
+        mode = [ "n" "v" ];
+        key = "<RightMouse>";
+        action.__raw = ''
+          function()
+            require("menu.utils").delete_old_menus()
+            vim.cmd.exec([["normal! \<RightMouse>"]])
+            local buf = vim.api.nvim_win_get_buf(vim.fn.getmousepos().winid)
+            local menu = vim.bo[buf].ft == "NvimTree" and "nvimtree" or "default"
+            require("menu").open(menu, { mouse = true })
+          end
+        '';
+        options.desc = "Контекстное меню";
+      }
 
       # ---- Дерево файлов ----
       { key = "<leader>e"; action = "<cmd>NvimTreeToggle<cr>";   options.desc = "Дерево файлов"; }
