@@ -28,6 +28,23 @@
   # риск приемлем для доверенной домашней сети.
   networking.firewall.allowedTCPPorts = [ 5900 ];
 
+  # Второй SSD (WDC WDS250G2B0A, 233 ГБ) — хранилище отдельно от системного диска.
+  # nofail: если диск отвалится, машина всё равно должна загрузиться.
+  fileSystems."/home/artur/ssd2" = {
+    device = "/dev/disk/by-uuid/4f4782d2-079a-44a6-a45c-a5e9b3890d66";
+    fsType = "btrfs";
+    options = [ "compress=zstd" "nofail" ];
+  };
+  # Корень свежей btrfs принадлежит root, а у btrfs нет mount-опции uid= —
+  # владельца корня отдаём artur'у после монтирования (не рекурсивно).
+  # Не через tmpfiles: тот не ходит по пути /home/artur (artur) → ssd2 (root).
+  systemd.services.ssd2-owner = {
+    wantedBy = [ "multi-user.target" ];
+    unitConfig.RequiresMountsFor = "/home/artur/ssd2";
+    serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+    script = "${pkgs.coreutils}/bin/chown artur:users /home/artur/ssd2";
+  };
+
   # ЗАПОЛНИТЬ при установке: ставится равным версии NixOS, с которой машина
   # установлена, и после этого не меняется никогда.
   system.stateVersion = "26.05";
@@ -69,10 +86,8 @@
     notificationScale = 1.0;
     osdScale = 1.0;
     hasBattery = false;
-    # Профиля Zen на новой машине ещё нет. После первого запуска браузера
-    # посмотреть имя каталога в ~/.config/zen/profiles.ini и вписать сюда —
-    # тогда home-manager положит туда user.js (шрифты, стартовая страница).
-    zenProfileDir = null;
+    # Имя каталога профиля — из ~/.config/zen/profiles.ini.
+    zenProfileDir = "zroyjfew.Default Profile";
     niriOutputs = ./outputs.kdl;
     wayvncConfig = ./wayvnc-config;
   };

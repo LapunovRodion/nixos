@@ -451,6 +451,27 @@ window-rule {
     clip-to-geometry true
 }
 
+// Zen — «матовое стекло»: окно прозрачное (zen.widget.linux.transparency +
+// home/zen/transparent.css, там же полупрозрачная подкраска), а размывает
+// обои под ним niri — сама программа на Wayland того, что под окном, не видит.
+//
+// Рамку фокуса niri по умолчанию заливает и ПОД окном — у прозрачного окна
+// вместо обоев виден её градиент. Здесь рамка остаётся только по краю.
+window-rule {
+    match app-id="^zen-twilight$"
+    draw-border-with-background false
+    background-effect {
+        blur true
+    }
+}
+
+// Сила размытия (dual kawase: радиус растёт как offset·2^passes).
+// Больше — сильнее размытие, меньше — отчётливее видны обои.
+blur {
+    passes 3
+    offset 2
+}
+
 // ТЕРМИНАЛ БОЛЬШЕ НЕ ПОЛУПРОЗРАЧЕН, и window-rule на это здесь нет.
 //
 // Стояло: window-rule по app-id ^kitty$ с opacity 0.92. Прозрачность

@@ -1,0 +1,47 @@
+/* =============================================================
+ * Интерфейс Zen — «матовое стекло»: полупрозрачная подкраска цветом
+ * --base поверх обоев, которые размывает niri (window-rule zen-twilight
+ * в home/niri/config.kdl).
+ *
+ * Community-шаблон noctalia (~/.cache/noctalia/zen-browser/zen-userChrome.css)
+ * заливает панели сплошным var(--base). Здесь та же специфичность и тот же
+ * !important, поэтому файл должен импортироваться в chrome/userChrome.css
+ * ПОСЛЕ строки noctalia:
+ *   @import "noctalia-transparent.css";
+ * apply.sh шаблона эту строку не трогает, так что она переживает смену обоев.
+ *
+ * Прозрачность самого окна включает user.js: zen.widget.linux.transparency.
+ * Цвета текста и иконок остаются от noctalia, сайты — непрозрачные.
+ * ============================================================= */
+
+/* Градиент темы воркспейса Zen рисует сам: слои #zen-browser-background и
+ * #zen-toolbar-background (класс .zen-browser-generic-background), цвет
+ * JS кладёт inline-переменными. Слои скрываем целиком, вместе с зерном.
+ * visibility, а не display: из #zen-browser-background Zen читает
+ * computed-цвет AccentColor. */
+.zen-browser-generic-background {
+  visibility: hidden !important;
+}
+
+:root {
+  --zen-themed-toolbar-bg: transparent !important;
+  --toolbar-bgcolor: transparent !important;
+  --toolbox-bgcolor-inactive: transparent !important;
+  --lwt-sidebar-background-color: transparent !important;
+}
+
+#navigator-toolbox,
+#zen-tabbox-wrapper,
+#zen-sidebar-splitter,
+#zen-workspaces-button,
+#zen-appcontent-navbar-container,
+#TabsToolbar,
+hbox#titlebar {
+  background: transparent !important;
+}
+
+/* Подкраска стекла — одна на всё окно, чтобы сайдбар читался на любых обоях.
+ * Процент — прозрачность: больше — плотнее и читаемее, меньше — виднее обои. */
+#zen-main-app-wrapper {
+  background: color-mix(in srgb, var(--base) 55%, transparent) !important;
+}
