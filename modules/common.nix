@@ -304,10 +304,18 @@ in
           config.allowUnfree = true;
         };
       in {
-        # Если снова понадобится версия свежее, чем в nixpkgs-cc: подменять src
-        # через overrideAttrs уже нельзя «в лоб» — installPhase распаковывает его
-        # через unzstd, так что url должен вести на .zst, а не на голый бинарь.
-        claude-code = ccPkgs.claude-code;
+        # Версия свежее, чем в nixpkgs-cc. Derivation принимает аргумент
+        # `manifest` (по умолчанию — свой manifest.zst.json из nixpkgs), откуда
+        # берёт и version, и per-platform checksum, — поэтому подменяем именно
+        # его, а не src через overrideAttrs: url ведёт на .zst, и sha256 всё
+        # равно пришлось бы тащить из того же манифеста.
+        #
+        # Обновить: pkgs/update-claude-code-manifest.sh
+        # Откатить, когда nixpkgs догонит: убрать override (оставить голый
+        # `ccPkgs.claude-code`) и удалить pkgs/claude-code-manifest.json.
+        claude-code = ccPkgs.claude-code.override {
+          manifest = lib.importJSON ../pkgs/claude-code-manifest.json;
+        };
 
         # xwayland-satellite из main: в релизном 0.8.2 меню-бар Steam
         # закрывается сразу после открытия. Полное объяснение и условие

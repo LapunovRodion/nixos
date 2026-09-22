@@ -1152,6 +1152,15 @@ in
     # выделение уместно.
     highlightOverride."@string.special.url".link = "@comment";
 
+    # gitsigns.linehl (см. plugins.gitsigns ниже) красит строки группами
+    # GitSignsAddLn/ChangeLn/DeleteLn. Своих catppuccin для них не даёт, и
+    # работают дефолты gitsigns: Add → DiffAdd (зелёный), Change → DiffChange
+    # (СИНИЙ), Delete → DiffDelete (красный). Изменённая строка — это новый
+    # код, её место рядом с добавленной, поэтому Change уводим в зелёный.
+    # Красный остаётся за удалением: строк в буфере нет, он виден меткой в
+    # signcolumn и в превью ханка (<leader>hp).
+    highlightOverride.GitSignsChangeLn.link = "DiffAdd";
+
     # базовые опции редактора
     opts = {
       number = true;
@@ -1274,43 +1283,19 @@ in
       gitsigns = {
         enable = true;              # git-пометки в gutter
         settings = {
-          # Различия ВНУТРИ строки, а не «строка целиком изменена». Без
-          # этого inline-превью (<leader>hi) показывает две почти
-          # одинаковые строки, и отличие приходится искать глазами.
-          word_diff = true;
+          # Различия ВНУТРИ строки. Постоянно включённые, они красят каждую
+          # изменённую строку целиком: на файле с большим диффом от текста
+          # ничего не остаётся. Нужны точечно — `:Gitsigns toggle_word_diff`.
+          word_diff = false;
+          # Фон на всю изменённую строку, а не только метка в signcolumn:
+          # видно прямо в коде, что тронуто. Строчный, а не пословный —
+          # ровная полоса читается, крошево из word_diff нет.
+          linehl = true;
           # Тот же бордюр, что у диагностических float'ов выше.
           preview_config.border = "rounded";
         };
       };
 
-      # Оверлей diff по всему файлу: старые строки — виртуальными строками
-      # над новыми, как рисуют дифф ИИ-агенты. У gitsigns для этого есть
-      # show_deleted, но он помечен deprecated и в setup() ИГНОРИРУЕТСЯ с
-      # предупреждением, поэтому постоянный оверлей взят у mini.diff.
-      # Бинд — <leader>ho, группа «Git-ханки».
-      mini = {
-        enable = true;
-        modules.diff = {
-          # style ЯВНО, а не дефолтом. mini.diff выводит его из vim.go.number
-          # на момент setup(), и полагаться на порядок вычисления opts не
-          # стоит. Смысл выбора: signcolumn остаётся за gitsigns, mini.diff
-          # красит колонку номеров — два индикатора не дерутся за место.
-          view.style = "number";
-
-          # Навигация и стейдж уже висят на gitsigns (]c/[c, <leader>hs/hr).
-          # Свой набор gh/gH/]h поставил бы рядом конкурирующие бинды на ту
-          # же работу, поэтому гасится целиком: пустая строка = «не вешать».
-          mappings = {
-            apply = "";
-            reset = "";
-            textobject = "";
-            goto_first = "";
-            goto_prev = "";
-            goto_next = "";
-            goto_last = "";
-          };
-        };
-      };
       comment.enable = true;        # gcc — закомментить строку
       nvim-autopairs.enable = true; # авто-закрытие скобок
       nvim-surround.enable = true;  # cs"' — поменять окружающие кавычки
@@ -1914,14 +1899,11 @@ in
 
       { key = "<leader>gg"; action = "<cmd>LazyGit<cr>"; options.desc = "LazyGit"; }
 
-      # Diffview — ревью side-by-side. `main...HEAD` (ТРИ точки) — дифф от
-      # точки расхождения, а не от текущего main: то же, что показывает
-      # pull request, и правки, приехавшие в main после ветвления, в него
-      # не попадают.
-      { key = "<leader>gd"; action = "<cmd>DiffviewOpen<cr>";             options.desc = "Diffview: рабочее дерево"; }
-      { key = "<leader>gm"; action = "<cmd>DiffviewOpen main...HEAD<cr>"; options.desc = "Diffview: ветка против main"; }
-      { key = "<leader>gf"; action = "<cmd>DiffviewFileHistory %<cr>";    options.desc = "История текущего файла"; }
-      { key = "<leader>gq"; action = "<cmd>DiffviewClose<cr>";            options.desc = "Закрыть Diffview"; }
+      # Diffview — ревью side-by-side. Остальные его режимы биндов не
+      # получили, набираются командой: `:DiffviewOpen main...HEAD` (ТРИ
+      # точки — дифф от точки расхождения, то же, что показывает pull
+      # request), `:DiffviewFileHistory %`, `:DiffviewClose`.
+      { key = "<leader>gd"; action = "<cmd>DiffviewOpen<cr>"; options.desc = "Diffview: рабочее дерево"; }
 
       # Буферы
       { key = "<S-h>"; action = "<cmd>BufferLineCyclePrev<cr>"; options.desc = "Предыдущий буфер"; }
@@ -1962,20 +1944,10 @@ in
       # Git-ханки (gitsigns)
       { key = "]c"; action = "<cmd>Gitsigns next_hunk<cr>"; options.desc = "Следующий ханк"; }
       { key = "[c"; action = "<cmd>Gitsigns prev_hunk<cr>"; options.desc = "Предыдущий ханк"; }
+      # Ханк плавающим окном, а не в самом буфере: текст под ним остаётся
+      # читаемым. Стейдж и откат биндов не имеют — это работа LazyGit
+      # (<leader>gg); поштучно — `:Gitsigns stage_hunk` / `reset_hunk`.
       { key = "<leader>hp"; action = "<cmd>Gitsigns preview_hunk<cr>"; options.desc = "Показать ханк"; }
-      { key = "<leader>hs"; action = "<cmd>Gitsigns stage_hunk<cr>";   options.desc = "Застейджить ханк"; }
-      { key = "<leader>hr"; action = "<cmd>Gitsigns reset_hunk<cr>";   options.desc = "Откатить ханк"; }
-
-      # Старый код на месте, а не плавающим окном поверх кода, как <leader>hp
-      # выше. hi — один ханк под курсором (gitsigns), ho — весь файл разом
-      # (mini.diff, переключатель).
-      { key = "<leader>hi"; action = "<cmd>Gitsigns preview_hunk_inline<cr>"; options.desc = "Старый код ханка на месте"; }
-      { key = "<leader>hw"; action = "<cmd>Gitsigns toggle_word_diff<cr>";    options.desc = "Различия по словам"; }
-      {
-        key = "<leader>ho";
-        action.__raw = "function() require('mini.diff').toggle_overlay() end";
-        options.desc = "Оверлей diff по всему файлу";
-      }
     ];
   };
 }
