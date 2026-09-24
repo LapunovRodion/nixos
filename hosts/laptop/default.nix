@@ -21,7 +21,16 @@
     # (VNC, <tailscale-ip>:5900), дальше просто открывать приложение
     # и кликать по нему — не набирать адрес каждый раз.
     pkgs.remmina
+    # Разбор расхода батареи: sudo powertop (или --csv=файл для отчёта).
+    pkgs.powertop
   ];
+
+  # powertop --auto-tune при загрузке: runtime PM для PCI (Wi-Fi, NVMe и
+  # др.), power_save аудиокодека, без NMI watchdog. Без этого ~25 устройств
+  # не засыпали никогда. Включает и USB-autosuspend — в том числе для
+  # встроенной клавиатуры ASUS (ITE 8910); если начнёт терять первое
+  # нажатие, исключить её udev-правилом (пример в описании postStart).
+  powerManagement.powertop.enable = true;
 
   # Remmina при первом запуске кладёт себе в автозапуск апплет
   # (~/.config/autostart/remmina-applet.desktop, Exec=remmina -i), и niri,

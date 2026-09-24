@@ -410,12 +410,13 @@ in
         schema_version = 2;
         widget_order = [
           "desktop-widget-0000000000000001"
-          "desktop-widget-0000000000000002"
-          "desktop-widget-0000000000000003"
-          "desktop-widget-0000000000000004"
-          "desktop-widget-0000000000000005"
-          "desktop-widget-0000000000000006"
-          "desktop-widget-0000000000000007"
+          # Остальные скрыты ради батареи (см. блок ниже):
+          # "desktop-widget-0000000000000002"
+          # "desktop-widget-0000000000000003"
+          # "desktop-widget-0000000000000004"
+          # "desktop-widget-0000000000000005"
+          # "desktop-widget-0000000000000006"
+          # "desktop-widget-0000000000000007"
         ];
         grid = { visible = true; cell_size = 16; major_interval = 4; };
         widget = {
@@ -436,6 +437,12 @@ in
               timezone = "";
             };
           };
+          # Скрыто 2026-09-24 ради батареи: powertop показал, что анимированные
+          # виджеты (визуализатор с show_when_idle, графики sysmon, орб) не дают
+          # экрану 120 Гц простаивать — kworker commit_work ел 64% CPU, ноут
+          # тянул 22–25 Вт в простое. Вернуть: снять комментарий и добавить
+          # id обратно в widget_order.
+          /*
           # монитор ресурсов: RAM + CPU графиком
           desktop-widget-0000000000000002 = {
             type = "sysmon";
@@ -516,6 +523,7 @@ in
               background = false;
             };
           };
+          */
         };
       };
 
