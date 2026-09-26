@@ -16,6 +16,33 @@ let
   fromRight = margin: scr.width * 1.0 - margin;
   fromBottom = margin: scr.height * 1.0 - margin;
 
+  # Плагины сообщества — как есть из flake-входа, кроме точечных правок
+  # под read-only /nix/store. Каталог плагина (pluginDir) здесь лежит в
+  # сторе, а некоторые плагины пишут прямо в него:
+  #   qrcode — кладёт qr-N.png рядом со своим кодом и падает с
+  #            «failed to generate the QR code». Переводим на pluginDataDir():
+  #            ~/.local/state/noctalia/plugins/data/yocraft/qrcode,
+  #            noctalia сама создаёт каталог.
+  #   web-search — держит кэш недавних запросов в pluginDir/cache; без
+  #            правки запись молча не проходит и история не запоминается.
+  # --replace-fail: если апстрим поправит сам, сборка упадёт и напомнит
+  # убрать правку.
+  communityPlugins = pkgs.applyPatches {
+    name = "noctalia-community-plugins";
+    src = inputs.noctalia-community-plugins;
+    postPatch = ''
+      substituteInPlace qrcode/panel.luau \
+        --replace-fail 'noctalia.pluginDir()' 'noctalia.pluginDataDir()'
+      substituteInPlace web-search/*.luau \
+        --replace-fail 'noctalia.pluginDir()' 'noctalia.pluginDataDir()'
+    '';
+  };
+
+  # Чистка state-файла перед стартом — см. ExecStartPre внизу файла.
+  noctaliaStateReset = pkgs.writers.writePython3Bin "noctalia-state-reset" { } (
+    builtins.readFile ./noctalia-state-reset.py
+  );
+
   # post_hook шаблона kitty: рисует картинку-градиент из цветов свежей
   # палитры. Разбор — в самом скрипте. writeShellApplication добавляет
   # шебанг и `set -euo pipefail` и прогоняет shellcheck при сборке,
@@ -44,10 +71,13 @@ in
 # /nix/store), ПОТОМ state-dir settings.toml — и он перекрывает.
 # В state пишет GUI настроек, при любом клике.
 #
-# Поэтому договорённость: ~/.local/state/noctalia/settings.toml
-# держим ПУСТЫМ. Настройки GUI — это черновик: покрутил, понравилось —
-# перенёс сюда и закоммитил, иначе следующая чистка state всё сотрёт.
-# Посмотреть, что накрутил GUI:  noctalia config export merged
+# Поэтому договорённость: настройки GUI — это черновик. Покрутил,
+# понравилось — перенёс сюда и закоммитил. Теперь это не на честном
+# слове: перед каждым стартом noctalia (ExecStartPre внизу) из state
+# выбрасывается всё, кроме текущих обоев, — то есть до перезапуска
+# шелла или перезагрузки. Накрученное в прошлой сессии лежит в
+# ~/.local/state/noctalia/settings.toml.prev.
+# Посмотреть, что накрутил GUI сейчас:  noctalia config export merged
 #
 # Разбор — в хранилище, [[08 - Кастомизация (rice)]].
 # =============================================================
@@ -77,6 +107,12 @@ in
         # внутри панели тоже просвечивают. Работает вместе с [backdrop]
         # ниже: панель прозрачная, а десктоп под ней размыт.
         panel.transparency_mode = "glass";
+
+        # Множитель скорости ВСЕХ анимаций шелла (панели, лаунчер Mod+D,
+        # OSD): длительность делится на него (animation_manager.cpp), 2.0 —
+        # вдвое быстрее заводского. Диапазон 0.1–4.0. Совсем без анимаций —
+        # animation.enabled = false.
+        animation.speed = 2.0;
       };
 
       # ---- Backdrop ------------------------------------------------
@@ -148,7 +184,7 @@ in
           # скрипт стоит на `set -euo pipefail`, и post_hook валится на каждой
           # смене обоев. Держать шаблон включённым можно только вместе с той
           # строкой; раз строки нет — нет и шаблона.
-          community_ids = [ "zen-browser" "obsidian" "fuzzel" "lazygit" "yazi" "telegram" ];
+          community_ids = [ "zen-browser" "obsidian" "lazygit" "yazi" "telegram" ];
 
           # Свой шаблон niri. input_path абсолютный (путь в /nix/store),
           # так что noctalia берёт его как есть — resolveConfigPath
@@ -215,8 +251,8 @@ in
       bar.default = {
         capsule = true;
         margin_ends = 0;
-        start = [ "group:g1" "wallpaper" "pulse" "nix-monitor" "keyboard_layout" ];
-        center = [ "workspaces" "cat" ];
+        start = [ "group:g1" "wallpaper" "pulse" "nix-monitor" "nix-status" "keyboard_layout" ];
+        center = [ "workspaces" ];
         # battery — только там, где батарея есть: на десктопе виджет
         # показывал бы пустоту.
         end = [
@@ -243,12 +279,12 @@ in
       };
 
       # Привязка имён виджетов бара к записям плагинов.
-      # Без этих трёх строк "pulse"/"nix-monitor"/"cat" в списках выше —
+      # Без этих строк "pulse"/"nix-monitor" в списках выше —
       # просто неизвестные имена.
       widget = {
         pulse.type = "lowcache/claude-companion:pulse";
         nix-monitor.type = "avivbintangaringga/nix-monitor:nix-monitor";
-        cat.type = "noctalia/bongocat:cat";
+        nix-status.type = "mindnbytes/nix-status:status";
       };
 
       # ---- Док -----------------------------------------------------
@@ -287,19 +323,49 @@ in
           {
             name = "community";
             kind = "path";
-            location = "${inputs.noctalia-community-plugins}";
+            location = "${communityPlugins}";  # с правками, см. let выше
           }
         ];
 
         # Какие из доступных плагинов включены. Их внешние зависимости
-        # (bw, python3, playerctl, evtest) — в modules/common.nix;
-        # без них плагин молча мёртв.
+        # (bw, python3, playerctl, fzf, gdbus, nix-search-tv) — в
+        # modules/common.nix; без них плагин молча мёртв.
+        #
+        # bongocat снят 2026-09-26 вместе с группой input: ради котика
+        # любой процесс сессии мог читать сырые нажатия клавиатуры.
         enabled = [
           "noctalia/bitwarden"
-          "noctalia/bongocat"
           "lowcache/claude-companion"
           "avivbintangaringga/nix-monitor"
+          # Значок в баре: ↻ — booted ≠ current (нужна перезагрузка, например
+          # после обновления драйвера NVIDIA), ⇧ — ~/nixos собирается не в ту
+          # систему, что запущена (есть незасвиченные правки). Клик — панель:
+          # сравнение замыканий, обновление инпутов флейка.
+          "mindnbytes/nix-status"
+          # QR-код из текста/ссылки, офлайн (qrencode). Mod+Alt+Q в niri.
+          "yocraft/qrcode"
+
+          # ---- Лаунчер (Mod+D): префикс + запрос ----
+          # Встроенное без префикса: приложения, калькулятор с единицами и
+          # валютами (`100 usd to byn`, курсы тянет сам, в т.ч. НБРБ), эмодзи,
+          # окна, сессия.
+          "noctalia/translator"        # /tr текст → en;  /tr ru hello → ru
+          "notfinaldev/web-search"     # /web запрос; попадает и в общий поиск
+          "knyrps/nix-search"          # /nix ripgrep — nixpkgs, опции NixOS и HM
+          "nightwatch75/file-search"   # /fs отчёт — файлы по мере набора
+          "weinguyen/shell-command"    # /sh htop — команда в терминале
+          "srounce/systemd"            # /svc hysteria — start/stop/restart юнитов
+          # game-launcher сознательно НЕ включён: при первом запуске он
+          # компилирует свой C-код через `cc` в каталог плагина — мимо nix,
+          # а каталог плагина тут read-only.
         ];
+      };
+
+      # Без flake_dir плагин умеет только поколения; с ним — ещё проверку
+      # «конфиг ≠ запущенная система» и обновление инпутов.
+      plugin_settings."mindnbytes/nix-status" = {
+        flake_dir = "/home/artur/nixos";
+        nixos_configuration = flakeAttr;
       };
 
       plugin_settings."avivbintangaringga/nix-monitor" = {
@@ -508,4 +574,13 @@ in
         };
     };
   };
+
+  # Перед каждым стартом — чистка state-файла (см. шапку файла).
+  # Без неё GUI рано или поздно перекрывает этот конфиг: так уже было со
+  # списком плагинов — после ребилда noctalia подняла старый список из state,
+  # и плагины лаунчера молча оказались выключены.
+  # Остаются только wallpaper.last и wallpaper.monitors.*: это не
+  # настройки, а текущие обои, которые noctalia пишет туда сама.
+  systemd.user.services.noctalia.Service.ExecStartPre =
+    "${noctaliaStateReset}/bin/noctalia-state-reset";
 }

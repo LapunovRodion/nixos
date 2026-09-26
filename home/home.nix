@@ -339,14 +339,14 @@ in
       # ---- nix ----
       # Через nh, а не голый nixos-rebuild. Причин три: сборка идёт с
       # прогрессом (пакет обёрнут с nix-output-monitor), после
-      # переключения печатается дифф пакетов (nvd), и — главное —
+      # переключения печатается дифф пакетов, и — главное —
       # конфигурация выбирается по hostname. Имени машины в строке нет
       # вообще, поэтому одно и то же сокращение верно и на десктопе, и
       # на ноуте: networking.hostName у них ровно desktop и laptop.
       # Прошлое поколение этих сокращений на этом и горело — там был
       # прибит гвоздями #desktop.
       #
-      # Путь к флейку берётся из NH_FLAKE (см. sessionVariables ниже),
+      # Путь к флейку берётся из NH_FLAKE (задаёт programs.nh в common.nix),
       # так что всё работает из любого каталога, а не только из ~/nixos.
       ns = "nh os switch";   # пересобрать и переключиться
       nb = "nh os build";    # только собрать, систему не трогать
@@ -359,11 +359,9 @@ in
       nt = "nh os test";
       nbo = "nh os boot";
       nrb = "nh os rollback";
-      # Чистка стора руками. Еженедельный автоматический GC уже есть
-      # (nix.gc в modules/common.nix), но он берёт только СИСТЕМНЫЕ
-      # поколения старше 14 дней; nh clean all добавляет к ним
-      # пользовательские профили и gcroots. Посмотреть, что удалится,
-      # не удаляя: nh clean all --dry-run.
+      # Чистка стора руками — то же, что еженедельно делает таймер
+      # programs.nh.clean (modules/common.nix), только прямо сейчас.
+      # Посмотреть, что удалится, не удаляя: nh clean all --dry-run.
       ngc = "nh clean all --keep 5 --keep-since 14d";
       nse = "nh search";
       # Пакет во временный шелл, без установки в систему: курсор встаёт
@@ -381,12 +379,6 @@ in
       };
     };
   };
-
-  # Путь к флейку для nh (см. сокращения выше). Без него `nh os switch`
-  # требует путь аргументом и работает только из ~/nixos.
-  # Строкой, а не через config.home.homeDirectory: так же захардкожено
-  # в home/noctalia.nix, где собирается команда кнопки Update.
-  home.sessionVariables.NH_FLAKE = "/home/artur/nixos";
 
   # --- умный cd: хук `z` вписывается в fish автоматически ---
   programs.zoxide = {
@@ -612,11 +604,13 @@ in
   # credential.helper — не идентичность, а способ авторизации: gh уже
   # залогинен (gh auth login), пусть git берёт токен оттуда вместо
   # запроса логина/пароля по https.
-  programs.git.enable = true;
-  programs.git.userName = "Rodion";
-  programs.git.userEmail = "lapunov.rodion@gmail.com";
-  programs.git.extraConfig = {
-    credential.helper = "!gh auth git-credential";
+  programs.git = {
+    enable = true;
+    settings = {
+      user.name = "Rodion";
+      user.email = "lapunov.rodion@gmail.com";
+      credential.helper = "!gh auth git-credential";
+    };
   };
   programs.delta = {
     enable = true;
@@ -1089,8 +1083,32 @@ in
   # --- монитор ресурсов (вместо glances) ---
   programs.btop.enable = true;
 
-  # --- аварийный простой редактор ---
-  programs.micro.enable = true;
+  # --- satty: разметка скриншота (Mod+Ctrl+S в niri) ---
+  # Настройки здесь, а не флагами в бинде: так их подхватывает любой вызов
+  # satty, в том числе руками из терминала.
+  programs.satty = {
+    enable = true;
+    settings.general = {
+      early-exit = true;          # Ctrl+C / Ctrl+S — сделал и закрылся
+      copy-command = "wl-copy";
+      # Рядом со снимками niri (screenshot-path в niri/config.kdl).
+      # Путь абсолютный: ~ satty в конфиге не раскрывает.
+      output-filename = "/home/artur/Pictures/Screenshots/satty-%Y-%m-%d_%H-%M-%S.png";
+    };
+  };
+
+  # Каталог для снимков. niri создаёт его сам при первом Print, а satty —
+  # нет: на чистой машине Ctrl+S в satty упал бы, пока не снят хоть один
+  # скриншот через niri.
+  systemd.user.tmpfiles.rules = [ "d %h/Pictures/Screenshots 0755 - - -" ];
+
+  # --- tldr: короткие примеры команд вместо man ---
+  # auto_update — кэш страниц качается сам и обновляется раз в неделю,
+  # без него первый же `tldr tar` ругнулся бы на пустой кэш.
+  programs.tealdeer = {
+    enable = true;
+    settings.updates.auto_update = true;
+  };
 
   # --- neovim через nixvim: весь конфиг описан на nix, декларативно ---
   programs.nixvim = {

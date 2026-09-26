@@ -1,11 +1,6 @@
 { config, pkgs, lib, inputs, ... }:
 
 let
-  # tuistore + его зависимость ricekit — обоих нет в nixpkgs, пакуем сами.
-  # Разбор и оговорка про императивный one-key-install — в pkgs/tuistore.nix.
-  ricekit = pkgs.python3Packages.callPackage ../pkgs/ricekit.nix { };
-  tuistore = pkgs.python3Packages.callPackage ../pkgs/tuistore.nix { inherit ricekit; };
-
   # specify-cli (GitHub Spec Kit) — нет в nixpkgs, пакуем из PyPI сами.
   # См. pkgs/specify-cli.nix. Заменяет прежний `uv tool install`.
   specify-cli = pkgs.python3Packages.callPackage ../pkgs/specify-cli.nix { };
@@ -188,7 +183,7 @@ let
   # `default` — единственный пакет флейка (официальный .deb, уже самодостаточный
   # Electron-трей без FHS-костылей), в отличие от старого k3d3-флейка с
   # claude-desktop-with-fhs.
-  claude-desktop-base = inputs.claude-desktop.packages.${pkgs.system}.default;
+  claude-desktop-base = inputs.claude-desktop.packages.${pkgs.stdenv.hostPlatform.system}.default;
   claude-desktop-vpn = pkgs.symlinkJoin {
     name = "claude-desktop-vpn";
     paths = [ claude-desktop-base ];
@@ -214,6 +209,9 @@ in
 {
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
+  # Без лимита /boot (1 ГБ) копит ядра и initrd всех поколений. 10 записей
+  # в меню — откатиться есть куда, а раздел не переполнится.
+  boot.loader.systemd-boot.configurationLimit = 10;
   boot.loader.efi.canTouchEfiVariables = true;
 
   # Use latest kernel.
@@ -265,21 +263,22 @@ in
     LC_TIME = "en_US.UTF-8";
   };
 
-  # Configure keymap in X11
-  services.xserver.xkb = {
-    layout = "us";
-    variant = "";
-  };
+  # Раскладка — в home/niri/config.kdl (блок xkb), services.xserver.xkb
+  # под niri никто не читает.
 
   # Define a user account. Don't forget to set a password with 'passwd'.
   users.users."artur" = {
     isNormalUser = true;
     description = "artur";
-    # input — чтение /dev/input/event*: нужно плагину noctalia bongocat,
-    # он смотрит нажатия клавиш через evtest. Применяется после релогина.
-    extraGroups = [ "networkmanager" "wheel" "input" ];
-    packages = with pkgs; [];
+    extraGroups = [ "networkmanager" "wheel" ];
     shell = pkgs.fish;   # логин-шелл fish (Batch 2)
+    # Кому можно по SSH. Пароль выключен (см. services.openssh внизу), так
+    # что это единственный вход — и он в git, а не в ~/.ssh/authorized_keys,
+    # который на новой машине пришлось бы заводить руками. Файл sshd по-прежнему
+    # читает, но источник правды — здесь; новую машину дописывать сюда.
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMbdnhp9h+DnqjB1n/Q9Em5T3usUkzUxpZyL/gk9FZYR artur@nixos"
+    ];
   };
 
   # fish на системном уровне: регистрирует /etc/shells + vendor-completions.
@@ -289,34 +288,13 @@ in
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 
-  # Оверлей: claude-code берём из отдельного свежего входа nixpkgs-cc,
-  # а не из основного nixpkgs. Так CLI обновляется независимо (nix flake
-  # update nixpkgs-cc), не таща за собой весь unstable. claude-code-vpn
-  # в let-блоке оборачивает уже этот, свежий, pkgs.claude-code.
-  # Вторым пунктом — xwayland-satellite из своего flake-входа (см. ниже).
+  # Оверлей: xwayland-satellite из своего flake-входа (см. ниже).
+  # claude-code берётся из основного nixpkgs как есть: отдельный вход
+  # nixpkgs-cc и подмена манифеста сняты 2026-09-26, когда nixpkgs догнал
+  # ту же версию (2.1.280). Если снова понадобится CLI свежее nixpkgs —
+  # вернуть можно из git-истории.
   nixpkgs.overlays = [
-    (final: prev:
-      let
-        # Импортируем nixpkgs-cc со своим config (не legacyPackages — там дефолтный
-        # config без allowUnfree, а claude-code unfree).
-        ccPkgs = import inputs.nixpkgs-cc {
-          system = prev.stdenv.hostPlatform.system;
-          config.allowUnfree = true;
-        };
-      in {
-        # Версия свежее, чем в nixpkgs-cc. Derivation принимает аргумент
-        # `manifest` (по умолчанию — свой manifest.zst.json из nixpkgs), откуда
-        # берёт и version, и per-platform checksum, — поэтому подменяем именно
-        # его, а не src через overrideAttrs: url ведёт на .zst, и sha256 всё
-        # равно пришлось бы тащить из того же манифеста.
-        #
-        # Обновить: pkgs/update-claude-code-manifest.sh
-        # Откатить, когда nixpkgs догонит: убрать override (оставить голый
-        # `ccPkgs.claude-code`) и удалить pkgs/claude-code-manifest.json.
-        claude-code = ccPkgs.claude-code.override {
-          manifest = lib.importJSON ../pkgs/claude-code-manifest.json;
-        };
-
+    (final: prev: {
         # xwayland-satellite из main: в релизном 0.8.2 меню-бар Steam
         # закрывается сразу после открытия. Полное объяснение и условие
         # удаления — у одноимённого input в flake.nix.
@@ -348,21 +326,31 @@ in
   # ---------------------------------------------------------------
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];
+    # Одинаковые файлы в сторе схлопываются в хардлинки прямо при сборке.
+    auto-optimise-store = true;
     extra-substituters = [ "https://noctalia.cachix.org" ];
     extra-trusted-public-keys = [
       "noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
     ];
   };
 
-  # Еженедельная сборка мусора. Без неё стор за месяц дорос до 81 ГБ при
-  # закрытии текущей системы в 21.8 ГБ: каждая новая ревизия nixpkgs тянет
-  # собственное закрытие почти без пересечения с предыдущим, а поколения
-  # копились с 29.07 (их набралось 32 штуки).
-  # 14d — компромисс: откатиться из загрузчика есть куда, но дубли не растут.
-  nix.gc = {
-    automatic = true;
-    dates = "weekly";
-    options = "--delete-older-than 14d";
+  # nh — обёртка над nix: ребилд с прогрессом и диффом пакетов, чистка стора.
+  # Модулем, а не пакетом: он же задаёт NH_FLAKE (путь к флейку, чтобы
+  # `nh os switch` работал из любого каталога) и еженедельную чистку.
+  #
+  # Чистка заменила nix.gc: без неё стор за месяц дорос до 81 ГБ при
+  # закрытии текущей системы в 21.8 ГБ — каждая ревизия nixpkgs тянет своё
+  # закрытие, а поколения копились. nh clean all, в отличие от nix.gc, берёт
+  # ещё пользовательские профили и gcroots (direnv, result-ссылки).
+  # --keep 5 --keep-since 14d: откатиться есть куда, дубли не растут.
+  programs.nh = {
+    enable = true;
+    flake = "/home/artur/nixos";
+    clean = {
+      enable = true;
+      dates = "weekly";
+      extraArgs = "--keep 5 --keep-since 14d";
+    };
   };
 
   # ---------------------------------------------------------------
@@ -439,15 +427,14 @@ in
   environment.systemPackages = with pkgs; [
     # базовое
     git
-    vim
     wget
+    fd                    # быстрый find; его же берут telescope и yazi, если есть
     uv                    # python-тулчейн и раннер (uvx) для проектов
     # Нужен скиллу archify (см. home.nix): SKILL.md велит агенту звать
     # `node bin/archify.mjs`, а claude-code свой node наружу не отдаёт.
     # Зависимостей у скилла нет, поэтому голого интерпретатора хватает.
     nodejs_22
     # niri окружение
-    fuzzel               # лаунчер
     kitty                # терминал (единственный; вместо alacritty/rio)
     xwayland-satellite   # X11-приложения
     # Зеркалирование монитора. Своего дублирования выходов у niri нет:
@@ -471,17 +458,9 @@ in
     # agenix — CLI для работы с секретами: `agenix -e <файл>.age` править,
     # `agenix -r` перешифровать на всех получателей из secrets/secrets.nix.
     # Запускать ИЗ каталога secrets/ — он ищет secrets.nix рядом.
-    inputs.agenix.packages.${pkgs.system}.default
+    inputs.agenix.packages.${pkgs.stdenv.hostPlatform.system}.default
     # 4. Claude Code (CLI, unfree) — обёрнутый на VPN, см. let выше
     claude-code-vpn
-    # 4a. OpenSpec — spec-driven разработка для агентов: `openspec init` в репе
-    #     заводит каталог openspec/ (specs + changes), дальше агент правит
-    #     спеку, а не догадывается. Обёртка на VPN НЕ нужна: он никуда не
-    #     ходит, только читает и пишет файлы в проекте.
-    #     Версия из нашего пина nixpkgs — 1.4.1; в свежем unstable уже 1.7.0
-    #     (апстрим — 1.8.0). Догнать: `nix flake update nixpkgs` целиком либо
-    #     завести openspec в оверлей из nixpkgs-cc, как сделано с claude-code.
-    openspec
     # 5. Obsidian (unfree) — само хранилище синхронизируется через syncthing ниже
     obsidian
 
@@ -495,24 +474,16 @@ in
     # Эти пакеты закрывают то, чего нет ни у неё, ни у niri: аннотации и видео.
     grim                 # захват в файл из CLI (для скриптов/пайплайнов)
     slurp                # выбор области мышью → координаты, в связке с grim
-    satty                # редактор снимка: стрелки, текст, размытие
+    # satty (редактор снимка) — programs.satty в home/home.nix, вместе с конфигом
     wf-recorder          # запись видео экрана
     libnotify            # notify-send — индикация записи (демон уведомлений = noctalia)
     screenrec            # обёртка старт/стоп записи с таймером, см. let выше
     # ---- Картинки ----
-    # Роли не пересекаются:
-    #   gthumb — просмотрщик + быстрые правки (кроп, поворот, ресайз, коррекция)
-    #            и пакетные операции над папкой; единственный хендлер image/*
-    #            для xdg-open.
-    #   pinta  — редактор «как paint» со слоями: кисть, фигуры, текст,
-    #            произвольное выделение и склейка двух картинок вручную
-    #            (Canvas Size → Import from File → подвинуть → Flatten).
-    #            Тянет dotnet-runtime; нового в сторе ~119 МиБ, остальное
-    #            замыкание общее с системным GTK.
-    # satty в эту пару не входит: он аннотирует свежий снимок из пайплайна
-    # noctalia/grim, а не готовый файл с диска.
+    # gthumb — просмотрщик + быстрые правки (кроп, поворот, ресайз, коррекция)
+    # и пакетные операции над папкой; единственный хендлер image/* для
+    # xdg-open. satty в эту роль не входит: он аннотирует свежий снимок из
+    # пайплайна noctalia/grim, а не готовый файл с диска.
     gthumb
-    pinta
     # CLI-утилиты
     gh          # github-cli
     lazygit
@@ -536,38 +507,26 @@ in
                     # ОДИН РАЗ до логина (или Server URL в настройках плагина).
     python3         # хуки и MCP-шим плагина lowcache/claude-companion (stdlib, без pip)
     playerctl       # «что играет»: шим claude-companion + медиа-бинды niri
-    evtest          # bongocat читает им нажатия клавиш; плюс группа `input` выше
+    fzf             # file-search и nix-search; home-manager кладёт свой fzf
+                    # только в профиль пользователя, а не в PATH сервиса noctalia
+    glib            # gdbus — file-search
+    nix-search-tv   # индекс для nix-search (/nix в лаунчере)
+    qrencode        # qrcode
 
     # ---- Видимость пакетов (чеклист [[04]], «Просмотр установленного») ----
-    # В NixOS источник правды — сам конфиг, «пакетный менеджер как в Arch» не нужен.
-    # Эти двое отвечают на вопросы, которых конфиг не покрывает.
-    # (третий, nix-index, подключён модулем ниже — ему нужна не только программа)
-    nvd         # читаемый diff поколений: что реально изменилось после rebuild
-    nix-tree    # TUI по замыканию: кто кого тянет и сколько весит
+    # В NixOS источник правды — сам конфиг. nix-tree отвечает на то, чего
+    # конфиг не покрывает: кто кого тянет и сколько весит. Дифф поколений
+    # печатает nh после каждого switch, nix-index — модулем ниже.
+    nix-tree
 
     # ---- Batch 3a: мессенджеры, торрент (из nixpkgs) ----
     vesktop           # Discord-клиент (вместо discord)
     ayugram-desktop   # форк Telegram (бинарник называется AyuGram)
     qbittorrent       # торренты
 
-    # torlink — TUI-искалка торрентов, дополняет qbittorrent (тот качает и сидит).
-    # Из flake апстрима, см. flake.nix. ВНИМАНИЕ: бинарь называется `torlnk`,
-    # без второй "i" — так он опубликован в npm, так же зовётся и в пакете.
-    inputs.torlink.packages.${pkgs.system}.default
-
-    # tuistore — витрина TUI-приложений (не установщик, см. pkgs/tuistore.nix)
-    tuistore
-
     # specify-cli — CLI Spec Kit (`specify init`/`/specify`/`/plan`/`/tasks`
     # в Claude Code), см. pkgs/specify-cli.nix
     specify-cli
-
-    # ---- Книги ----
-    # Читалка. Библиотека живёт на сервере (Grimmory, http://server:6060),
-    # книги берутся по OPDS, место чтения синхронизируется через
-    # Custom Sync Server (kosync-протокол) на тот же адрес. Syncthing не участвует.
-    # Тот же Readest ставится на телефон — интерфейс и настройки одинаковые.
-    readest
 
     # ---- Связь с телефоном ----
     # Из тройки KDE Connect / scrcpy / LocalSend взят только LocalSend (ревизия
@@ -584,7 +543,7 @@ in
     # Профиль общий со стабильной версией (Vendor=Mozilla, Name=Zen у обеих),
     # так что история, вкладки, user.js и тема из noctalia остаются на месте.
     # Бинарь и .desktop называются zen-twilight, а не zen-beta.
-    inputs.zen-browser.packages.${pkgs.system}.twilight
+    inputs.zen-browser.packages.${pkgs.stdenv.hostPlatform.system}.twilight
     # claude-desktop сюда НЕ входит: ставится модулем programs.claude-desktop
     # ниже (свой пакет claude-desktop-vpn, обёрнутый на VPN, см. let выше)
 
@@ -631,6 +590,7 @@ in
     # в настройках игры в Lutris → System options → Command prefix
     # прописать nvidia-offload — тот же приём, что и для Steam ниже.
     lutris
+    mangohud   # оверлей FPS/нагрузки: MANGOHUD=1 %command% в Steam, или в Lutris
     wineWow64Packages.stable   # не wineWowPackages — тот deprecated в этом nixpkgs
     winetricks
 
@@ -638,29 +598,27 @@ in
     # ncdu — TUI-обход каталогов по размеру, удаление клавишей `d`.
     #   Домашка: `ncdu ~`, вся система: `sudo ncdu / --exclude /nix`.
     ncdu
-    # nh — обёртка над nix. Сборка мусора с прогрессом, чистит сразу
-    #   системные и пользовательские профили + gcroots:
-    #     nh clean all --keep 5 --keep-since 14d
-    #   Сначала стоит глянуть `nh clean all --dry-run`.
-    nh
   ];
 
-  # plocate — быстрый поиск по имени файла (updatedb по таймеру).
-  # Правильный способ в NixOS — модуль, а не просто пакет.
-  services.locate = {
-    enable = true;
-    package = pkgs.plocate;
-  };
-
-  # nix-index — «какой пакет даёт этот бинарь». Модулем, а не пакетом: он ещё
-  # вешает обработчик command-not-found на fish (набрал неизвестную команду —
-  # подсказал, в каком пакете она лежит).
-  # ВАЖНО: базу надо построить один раз руками — `nix-index` (несколько минут,
-  # качает file-listings). Без неё nix-locate будет ругаться на отсутствие индекса.
+  # nix-index — «какой пакет даёт этот бинарь», плюс обработчик
+  # command-not-found в fish: набрал неизвестную команду — подсказал пакет.
+  # Базу собирает апстрим nix-index-database раз в неделю (вход во flake.nix,
+  # модуль подключён в mkHost), руками `nix-index` запускать не нужно.
+  # comma: `, cowsay hi` — запустить программу из nixpkgs, не устанавливая.
   programs.nix-index.enable = true;
+  programs.nix-index-database.comma.enable = true;
   # Штатный command-not-found ходит в базу channels, которых при flake-подходе
   # нет, — он тут нерабочий. Плюс модуль nix-index на него ругается assert'ом.
   programs.command-not-found.enable = false;
+
+  # TRIM для SSD раз в неделю. Без него контроллер со временем пишет
+  # медленнее: он не знает, какие блоки файловая система уже освободила.
+  services.fstrim.enable = true;
+
+  # Обновления прошивок через LVFS: BIOS/EC ноутбука, SSD, док-станции.
+  # Ничего не ставит сам — смотреть и применять руками:
+  #   fwupdmgr refresh && fwupdmgr get-updates && fwupdmgr update
+  services.fwupd.enable = true;
 
   # udisks2 — демон, который умеет монтировать съёмные носители БЕЗ sudo:
   # разрешение выдаётся через polkit локальной сессии. Даёт команду udisksctl
@@ -720,6 +678,17 @@ in
   # На десктопе видеокарта одна — ничего дописывать не нужно.
   programs.steam.enable = true;
 
+  # gamemode — на время игры поднимает приоритет процесса и переключает
+  # CPU governor на performance. В Steam: Launch Options → gamemoderun %command%
+  # (вместе с оверлеем: gamemoderun mangohud %command%). В Lutris — галка
+  # «Enable Feral GameMode» в System options.
+  programs.gamemode.enable = true;
+  # gamescope — микрокомпозитор Valve вокруг одной игры: своё разрешение,
+  # FSR-апскейл, ограничение FPS, изоляция от niri. Когда игра капризничает
+  # с полноэкранным режимом под Wayland:
+  #   gamescope -W 1920 -H 1080 -f -- %command%
+  programs.gamescope.enable = true;
+
   # ---------------------------------------------------------------
   # nix-ld — динамический линковщик-заглушка для generic-бинарников
   # ---------------------------------------------------------------
@@ -750,16 +719,11 @@ in
     enableDefaultPackages = true;
     packages = with pkgs; [
       # Iosevka-сборка с Nerd-глифами внутри. Держим ради охвата:
-      # ~17900 кодовых точек против 1079 у Departure Mono, который
-      # стоял основным ещё раньше и сыпался в «тофу» на всём, кроме
-      # базовой латиницы с кириллицей. Четыре веса плюс курсивы.
+      # ~17900 кодовых точек — ловит то, чего нет в JetBrains Mono.
+      # Четыре веса плюс курсивы.
       # Основным больше не является — узкий, и на крупном кегле это
       # видно; моноширина везде уехала на JetBrains Mono.
       lyth-mono
-
-      # Departure Mono оставлен: пиксельный, красивый, но годится
-      # только как декоративный — включать точечно, не по умолчанию.
-      departure-mono
 
       # Основной гротеск: интерфейсы GTK и текст в вебе, где сайт
       # не назвал шрифт сам. Берём ibm-plex.sans, а не ibm-plex
@@ -776,38 +740,25 @@ in
       paratype-pt-serif
 
       nerd-fonts.jetbrains-mono   # ttf-jetbrains-mono-nerd
-      nerd-fonts.meslo-lg         # ttf-meslo-nerd
       noto-fonts                  # noto-fonts
       noto-fonts-cjk-sans         # noto-fonts-cjk
-      noto-fonts-color-emoji      # noto-fonts-emoji
-      dejavu_fonts                # ttf-dejavu
-      liberation_ttf              # ttf-liberation
-      open-sans                   # ttf-opensans
-      cantarell-fonts             # cantarell-fonts
-
-      # Terminus — битмапный терминальный шрифт. Две сборки не дублируют
-      # друг друга: PCF/OTB рисуется попиксельно и живёт только в «родных»
-      # кеглях (12/14/16/18/20/22/24/28/32 px), TTF — обводочная конверсия
-      # для тех, кто битмапы не берёт в принципе (GTK, Electron, Qt).
-      # Битмапы фонтконфиг тут не режет: fonts.fontconfig.allowBitmaps = true
-      # по умолчанию, отдельно включать не нужно.
-      terminus_font               # terminus-font
-      terminus_font_ttf           # ttf-terminus-font
+      # DejaVu, Liberation и Noto Color Emoji отдельно не нужны: их уже
+      # ставит enableDefaultPackages выше.
     ];
     fontconfig.defaultFonts = {
       # JetBrains Mono самодостаточен: сборка Nerd Fonts, иконки и
-      # powerline у него свои. Meslo и Lyth — страховка на экзотику,
+      # powerline у него свои. Lyth — страховка на экзотику,
       # у Lyth охват шире всех (~17900 знаков).
       # Здесь ВЕЗДЕ имена без суффикса Mono: он нужен только терминалу,
       # где иконочные глифы обязаны быть одинарной ширины (см.
       # programs.kitty в home/home.nix).
-      monospace = [ "JetBrainsMono Nerd Font" "MesloLGS Nerd Font" "LythMonoTerm Nerd Font" ];
+      monospace = [ "JetBrainsMono Nerd Font" "LythMonoTerm Nerd Font" ];
 
       # Noto остаётся вторым не как «запасной похуже», а как ловец
       # экзотики: у Plex 893 знака, у PT Serif 717 — обоим хватает
       # на кириллицу с типографикой, но на греческом, деванагари
       # или стрелках подхватит уже Noto.
-      sansSerif = [ "IBM Plex Sans" "Noto Sans" "Open Sans" ];
+      sansSerif = [ "IBM Plex Sans" "Noto Sans" ];
       serif     = [ "PT Serif" "Noto Serif" ];
       emoji     = [ "Noto Color Emoji" ];
     };
@@ -815,7 +766,12 @@ in
 
   # Enable the OpenSSH daemon.
   services.openssh.enable = true;
-  services.openssh.settings.PasswordAuthentication = true;
+  # Только по ключу: порт 22 открыт, а пароль — это подбор. Ключи — в
+  # users.users.artur.openssh.authorizedKeys выше.
+  services.openssh.settings = {
+    PasswordAuthentication = false;
+    KbdInteractiveAuthentication = false;
+  };
   # Побочный, но важный эффект: host-ключ /etc/ssh/ssh_host_ed25519_key,
   # который agenix использует для расшифровки секретов.
 }

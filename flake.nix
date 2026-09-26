@@ -4,13 +4,6 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-    # Отдельный, всегда свежий срез nixpkgs ТОЛЬКО под claude-code.
-    # Через оверлей (см. configuration.nix) им подменяется pkgs.claude-code,
-    # чтобы обновлять CLI независимо от основного nixpkgs — не утаскивая весь
-    # unstable (и его случайные поломки).
-    # Обновление CLI: nix flake update nixpkgs-cc  →  rebuild.
-    nixpkgs-cc.url = "github:NixOS/nixpkgs/nixos-unstable";
-
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -108,13 +101,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # torlink — TUI-поиск торрентов, в nixpkgs его нет. Апстрим держит пакет сам
-    # (nix/package.nix в репозитории) и, что важно, умеет собирать нативный
-    # WebRTC-модуль (node-datachannel) офлайн, с пиннингом libdatachannel —
-    # руками это в песочнице не собрать, там postinstall лезет в сеть за cmake-js.
-    # Поэтому берём готовый пакет апстрима, а не пакуем свой.
-    torlink = {
-      url = "github:baairon/torlink";
+    # nix-index-database — готовая база nix-index, пересобирается апстримом
+    # раз в неделю. Без неё nix-index требовал ручного `nix-index` (несколько
+    # минут), и command-not-found в fish молчал. Заодно даёт comma:
+    # `, cowsay hi` — запустить программу, не устанавливая.
+    # Обновление базы: nix flake update nix-index-database → rebuild.
+    nix-index-database = {
+      url = "github:nix-community/nix-index-database";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -158,6 +151,7 @@
           noctalia.nixosModules.default
           inputs.agenix.nixosModules.default
           inputs.claude-desktop.nixosModules.default
+          inputs.nix-index-database.nixosModules.nix-index
           home-manager.nixosModules.home-manager
           {
             home-manager.useGlobalPkgs = true;
