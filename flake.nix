@@ -101,6 +101,16 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # tuios из апстрима, а не из nixpkgs (там отстаёт на минорную версию,
+    # а агентские фичи — Inbox, harness'ы — меняются от релиза к релизу).
+    # Пин на релизный тег, а не main: на main (07a467c, 2026-09-28) апстрим забыл
+    # обновить vendorHash, и сборка падает на hash mismatch go-modules.
+    # Обновление: сменить тег → nix flake update tuios → rebuild.
+    tuios = {
+      url = "github:Gaurav-Gosain/tuios/v0.8.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # nix-index-database — готовая база nix-index, пересобирается апстримом
     # раз в неделю. Без неё nix-index требовал ручного `nix-index` (несколько
     # минут), и command-not-found в fish молчал. Заодно даёт comma:

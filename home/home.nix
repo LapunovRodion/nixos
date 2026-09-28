@@ -962,80 +962,47 @@ in
         -attenuate 0.03 +noise Gaussian -depth 8 png:"$out"
     '';
 
-  # --- zellij: мультиплексор ---
-  # Здесь и пакет, и конфиг — в отличие от kitty/mpv, у которых пакет лежит в
-  # systemPackages. Почему так, расписано на месте удалённого tmux в
-  # modules/common.nix: модуль ставит пакет сам и им же зовёт автозапуск.
-  #
-  # Берётся ради того же, ради чего стоял tmux: сессия переживает закрытие
-  # терминала. Делить экран на панели по-хорошему незачем (этим занят niri),
-  # но раз панели есть, биндам стоит остаться привычными — отсюда всё ниже.
-  #
-  # Чем закрыты плагины, которые висели на tmux:
-  #   tmux-floax       → ToggleFloatingPanes, штатное всплывающее окно
-  #   tmux-sessionx    → zellij:session-manager, встроенный плагин
-  #   prefix-highlight → режим и так нарисован в строке статуса
-  #   tmux-which-key   → подсказки по текущему режиму там же
-  # То есть плагинов не осталось совсем, и вместе с ними — истории про
-  # @tmux-which-key-disable-autobuild и запись в /nix/store.
-  programs.zellij = {
-    enable = true;
-
-    # Без автозапуска: kitty открывает голый fish, zellij — руками, когда
-    # нужен. enableFishIntegration по умолчанию true и вписывает автозапуск.
-    enableFishIntegration = false;
-
-    settings = {
-      # Встроенная тема zellij, фиксированная — за обоями НЕ едет.
-      # Раньше здесь была своя themes.noctalia на 256-цветных индексах
-      # (color0..15 кладёт в терминал noctalia): работала, но палитра
-      # менялась вместе с обоями и мультиплексор каждый раз выглядел
-      # по-новому. Фикс дешевле, чем ещё один шаблон и post_hook.
-      #
-      # Другие встроенные на ту же тёмную нишу: catppuccin-mocha,
-      # nightfox, gruvbox-dark, dracula, nord — вписываются сюда же,
-      # больше менять нечего. Полный список: `zellij setup --dump-config`.
-      theme = "tokyo-night-dark";
-
-      # Wayland-буфер. Было copy-pipe-and-cancel "wl-copy" в copy-mode-vi.
-      copy_command = "wl-copy";
-      # Копирует само выделение мышью. Отдельного `y` в zellij нет, так что
-      # при false копировать было просто нечем.
-      copy_on_select = true;
-
-      # Было historyLimit = 50000.
-      scroll_buffer_size = 50000;
-
-      # Рамки вокруг панелей не нужны: границы рисует niri, а внутри одного
-      # окна панелей обычно одна-две. Плюс возвращает две строки высоты.
-      pane_frames = false;
-
-      # То, ради чего раньше брался smug: раскладка вкладок и панелей
-      # сохраняется на диск и поднимается после ребута. Разница с smug'ом в
-      # том, что описание больше не лежит в git — оно снимается с живой
-      # сессии. Мне хватает: сессия одна, и она про этот же репозиторий.
-      session_serialization = true;
-
-      # Без всплывающих окон при старте: совет дня и «что нового» после
-      # обновления версии.
-      show_startup_tips = false;
-      show_release_notes = false;
+  # --- tuios: мультиплексор ---
+  # Пакет — в systemPackages (modules/common.nix), здесь конфиг. Файл — симлинк
+  # в store, только на чтение: настройки из Ctrl+B , и `tuios keybinds unbind`
+  # сохраняться не будут — править здесь. Всё, чего нет в файле, tuios берёт
+  # по умолчанию (ParseUserConfig добивает пропуски сам).
+  xdg.configFile."tuios/config.toml".source =
+    (pkgs.formats.toml { }).generate "tuios-config.toml" {
+      appearance = {
+        # Фон не рисуем: сквозь tuios виден градиент kitty (backgrounds/*.png).
+        background = "off";
+        # Без темы — цвета терминала, т.е. палитра noctalia, едущая за обоями.
+        # Содержимое панелей перекрашивается сразу (индексы 0..15 рисует kitty);
+        # ответы на OSC 10/11 и цвета рамок tuios снимает при старте/attach.
+        theme = "";
+      };
+      keybindings = {
+        # ctrl+p — история fish. Палитра остаётся на Ctrl+B P; ctrl+shift+p
+        # не годится — в kitty это префикс hints-киттена.
+        global.command_palette = [ ];
+        # alt+←/→ — переход по словам в fish. Панели: alt+↑/↓ и через лидер.
+        terminal_mode = {
+          terminal_focus_left = [ ];
+          terminal_focus_right = [ ];
+        };
+      };
+      # Сессия переживает закрытие kitty.
+      startup.daemon = true;
+      # Короткие Bash/чтения Claude Code одобряются из Inbox (Ctrl+B i).
+      agents.approvals.enabled = [ "claude-code" ];
     };
 
-    # Вкладка по номеру одним аккордом, без захода в режим Ctrl+t.
-    # Alt+цифры не заняты ни zellij, ни fish, ни niri. Сырым KDL, а не через
-    # settings: генератор toKDL неудобно выражает `bind "Alt 1"`. Штатные
-    # бинды остаются — блок keybinds без clear-defaults только дополняет их.
-    extraConfig = ''
-      keybinds {
-          shared_except "locked" {
-              ${lib.concatMapStrings (n: ''
-                bind "Alt ${toString n}" { GoToTab ${toString n}; }
-              '') (lib.range 1 9)}
-          }
-      }
-    '';
-  };
+  # Хуки tuios в ~/.claude/settings.json (файл не под HM — его правят и
+  # claude-companion, и сам Claude). install идемпотентен, повтор на каждом
+  # switch безвреден и заодно обновляет хуки после апгрейда tuios
+  # (approvals требуют «version 2 of the integration»).
+  home.activation.tuiosClaude = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if [ -d "$HOME/.claude" ]; then
+      run ${inputs.tuios.packages.${pkgs.stdenv.hostPlatform.system}.default}/bin/tuios \
+        integration install claude-code
+    fi
+  '';
 
   # --- mpv: видеоплеер ---
   # Пакет — в systemPackages (modules/common.nix), здесь только конфиг:

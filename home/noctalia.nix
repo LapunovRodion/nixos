@@ -583,4 +583,10 @@ in
   # настройки, а текущие обои, которые noctalia пишет туда сама.
   systemd.user.services.noctalia.Service.ExecStartPre =
     "${noctaliaStateReset}/bin/noctalia-state-reset";
+
+  # Каталог обоев читается только при старте, а ребилд лишь подменяет
+  # симлинк ~/Pictures/wallpaper на новый путь в /nix/store — запущенная
+  # noctalia об этом не узнаёт. Путь к обоям в юните меняет его хеш,
+  # и home-manager перезапускает шелл, когда набор обоев изменился.
+  systemd.user.services.noctalia.Unit.X-Restart-Triggers = [ "${../wallpapers}" ];
 }
