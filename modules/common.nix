@@ -455,6 +455,11 @@ in
     # сеть
     hysteria
     vpn        # `vpn` — статус и пинг, `vpn restart` — перезапуск; см. let выше
+    # Remmina — RDP/VNC-клиент с сохранёнными профилями: Windows-VM на
+    # Proxmox по RDP, desktop:5900 по VNC (wayvnc), всё через Tailscale.
+    # Профиль заводится один раз, дальше клик — без набора адреса.
+    # Автозапуск её апплета заглушен в блоке «6. Tailscale» ниже.
+    remmina
     # agenix — CLI для работы с секретами: `agenix -e <файл>.age` править,
     # `agenix -r` перешифровать на всех получателей из secrets/secrets.nix.
     # Запускать ИЗ каталога secrets/ — он ищет secrets.nix рядом.
@@ -664,6 +669,23 @@ in
   # После ребилда авторизация делается один раз вручную: sudo tailscale up
   services.tailscale.enable = true;
   networking.firewall.trustedInterfaces = [ "tailscale0" ];
+
+  # Remmina (см. systemPackages) при первом запуске кладёт себе в автозапуск
+  # апплет (~/.config/autostart/remmina-applet.desktop, Exec=remmina -i), и
+  # niri, который поддерживает xdg-desktop-autostart, честно поднимает его
+  # в трей при каждом входе. Нужен он там не был ни разу.
+  #
+  # Hidden=true по XDG-спеке означает «записи как будто нет» — сессия её
+  # пропускает. Пишем файл через home-manager, а не удаляем руками: он
+  # уезжает в /nix/store и подключается read-only симлинком, так что
+  # remmina не может создать его заново. Существующий обычный файл HM
+  # отодвинет в .hm-bak (backupFileExtension в flake.nix).
+  home-manager.users.artur.xdg.configFile."autostart/remmina-applet.desktop".text = ''
+    [Desktop Entry]
+    Type=Application
+    Name=Remmina Applet
+    Hidden=true
+  '';
 
   # ---------------------------------------------------------------
   # Steam — модулем, а не пакетом
