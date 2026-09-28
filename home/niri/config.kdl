@@ -458,7 +458,7 @@ window-rule {
 // Рамку фокуса niri по умолчанию заливает и ПОД окном — у прозрачного окна
 // вместо обоев виден её градиент. Здесь рамка остаётся только по краю.
 window-rule {
-    match app-id="^zen-twilight$"
+    match app-id="^zen-beta$"
     draw-border-with-background false
     background-effect {
         blur true
@@ -526,7 +526,7 @@ binds {
     // fuzzel и Vicinae сняты 2026-09-26: Vicinae держала отдельный сервер
     // на ~500 МиБ против 0 сверху у встроенного в шелл лаунчера.
     Mod+D hotkey-overlay-title="Launcher: noctalia" { spawn "noctalia" "msg" "panel-toggle" "launcher"; }
-    Mod+B hotkey-overlay-title="Open a Browser: Zen" { spawn "zen-twilight"; }
+    Mod+B hotkey-overlay-title="Open a Browser: Zen" { spawn "zen-beta"; }
     // yazi — TUI, поэтому запускается внутри kitty.
     Mod+E hotkey-overlay-title="File Manager: yazi" { spawn "kitty" "-e" "yazi"; }
     // Блокировка — встроенный локскрин noctalia (виджеты настроены в

@@ -539,15 +539,16 @@ in
     localsend
 
     # ---- Batch 3b: браузер (из стороннего flake) ----
-    # Zen — ветка Twilight (ночные сборки) вместо стабильной (ревизия 2026-07-28).
-    # twilight, а не twilight-official: первый берёт зеркало, которое сам flake
-    # пересобирает и пиннит по хешу (обновляется через nix flake update), второй
-    # тянет катящийся официальный релиз и ломает eval, как только upstream
-    # перевыложит архив под тем же URL.
-    # Профиль общий со стабильной версией (Vendor=Mozilla, Name=Zen у обеих),
+    # Zen — стабильная ветка (beta = релизы Zen). С 2026-07-28 стояла Twilight
+    # (ночные сборки); откат 2026-09-29: в Twilight 1.23t от 25.09 при запуске
+    # не инициализировался UIState синка — «not signed in», кнопка «Sync and
+    # Save Data» мертва, пространства между ноутом и десктопом не ходили.
+    # Переходить обратно на Twilight — только осознанно: сборки с 28.09 на
+    # Firefox 157, после их запуска стабильная (156) профиль уже не откроет.
+    # Профиль общий с Twilight (Vendor=Mozilla, Name=Zen у обеих),
     # так что история, вкладки, user.js и тема из noctalia остаются на месте.
-    # Бинарь и .desktop называются zen-twilight, а не zen-beta.
-    inputs.zen-browser.packages.${pkgs.stdenv.hostPlatform.system}.twilight
+    # Бинарь и .desktop называются zen-beta.
+    inputs.zen-browser.packages.${pkgs.stdenv.hostPlatform.system}.beta
     # claude-desktop сюда НЕ входит: ставится модулем programs.claude-desktop
     # ниже (свой пакет claude-desktop-vpn, обёрнутый на VPN, см. let выше)
 
