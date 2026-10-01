@@ -89,6 +89,10 @@ let
     // lib.mapAttrs' (k: v: lib.nameValuePair (kbd.mirrorMap.${k} or k) v) mpvKeys;
 in
 {
+  # В home-manager (с 2026-08) есть свой programs.noctalia — он конфликтует
+  # с модулем из флейка noctalia. Отключаем встроенный, оставляем флейковый.
+  disabledModules = [ "programs/noctalia" ];
+
   imports = [
     inputs.noctalia.homeModules.default
     inputs.nixvim.homeModules.nixvim
