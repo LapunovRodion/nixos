@@ -568,6 +568,8 @@ in
 
     # ---- Продуктивность ----
     super-productivity   # таск-менеджер / таймтрекер
+    joplin-desktop       # заметки (GUI)
+    joplin-cli           # заметки (TUI): `joplin`
 
     # ---- Музыка ----
     # Aonsoku — десктоп-клиент Navidrome/Subsonic. Библиотека стримится
