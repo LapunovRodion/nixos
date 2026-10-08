@@ -380,6 +380,20 @@ in
   # модуль — самого пакета fuse3 в systemPackages недостаточно.
   programs.fuse.enable = true;
 
+  # Thunar — графический файловый менеджер, основной (yazi остаётся для
+  # терминала). Nautilus niri тянул только ради окна выбора файлов портала
+  # gnome; с useNautilus = false модуль сам переключает FileChooser на gtk,
+  # и org.freedesktop.FileManager1 («Показать в папке» из браузера/Telegram)
+  # остаётся одному Thunar — у D-Bus при двух владельцах побеждает первый.
+  programs.niri.useNautilus = false;
+  programs.thunar.enable = true;
+  services.gvfs.enable = true;    # корзина, сеть (smb/sftp), телефоны по MTP
+  services.tumbler.enable = true; # миниатюры картинок и видео
+  # Каталоги по умолчанию — Thunar (было kitty-open). Системный
+  # /etc/xdg/mimeapps.list: личный ~/.config/mimeapps.list главнее, но
+  # inode/directory в нём не задан.
+  xdg.mime.defaultApplications."inode/directory" = "thunar.desktop";
+
   # ---------------------------------------------------------------
   # 2. noctalia v5 (шелл)
   # ---------------------------------------------------------------
@@ -500,6 +514,8 @@ in
     ripgrep     # уже подтягивался как зависимость — теперь объявлен явно
     ouch        # архиватор «одной командой»; им же живёт плагин ouch.yazi
                 # (превью содержимого архивов и упаковка по C) — см. home.nix
+    tig         # TUI для истории git
+    glow        # рендер markdown в терминале
     # tuios — мультиплексор (был tmux, потом zellij): видит статус агентов
     #   (Claude Code и др.) в панелях, niri-подобный скролл. Из flake апстрима
     #   (см. flake.nix). Модуля home-manager нет — конфиг руками.
@@ -568,8 +584,6 @@ in
 
     # ---- Продуктивность ----
     super-productivity   # таск-менеджер / таймтрекер
-    joplin-desktop       # заметки (GUI)
-    joplin-cli           # заметки (TUI): `joplin`
 
     # ---- Музыка ----
     # Aonsoku — десктоп-клиент Navidrome/Subsonic. Библиотека стримится
