@@ -1,7 +1,7 @@
 /* =============================================================
  * Интерфейс Zen — «матовое стекло»: полупрозрачная подкраска цветом
- * --base поверх обоев, которые размывает niri (window-rule zen-twilight
- * в home/niri/config.kdl).
+ * --base поверх обоев, которые размывает композитор (window_rule zen-beta
+ * в home/umbriel/config.toml).
  *
  * Community-шаблон noctalia (~/.cache/noctalia/zen-browser/zen-userChrome.css)
  * заливает панели сплошным var(--base). Здесь та же специфичность и тот же

@@ -140,10 +140,8 @@ in
       # ВСЁ, что под ней.
       #
       # ВКЛЮЧЁН с переездом на Umbriel. В niri он был выключен: обои там
-      # лежат в backdrop композитора, фон воркспейса прозрачный, и этот слой
-      # размывал обои ПОСТОЯННО (см. layer-rule в niri/config.kdl). В
-      # Umbriel обои — обычный background-слой, проблемы нет.
-      # Плата: в запасной сессии niri обои снова будут размыты всегда.
+      # лежали в backdrop композитора, и этот слой размывал их ПОСТОЯННО.
+      # В Umbriel обои — обычный background-слой, проблемы нет.
       backdrop = {
         enabled = true;
         blur_intensity = 0.5; # 0.0 — без размытия, 1.0 — максимум
@@ -168,13 +166,7 @@ in
         # include. Перекрашивается всё разом при смене обоев.
         # Список id: noctalia theme --list-templates
         templates = {
-          # "niri" из встроенных УБРАН намеренно: он пишет плоский
-          # active-color, а мне нужна градиентная рамка фокуса. Вместо него
-          # свой шаблон ниже, templates.user.niri — он покрывает всё, что
-          # делал встроенный, плюс градиент. Держать оба нельзя: два файла
-          # определяли бы один и тот же focus-ring.
-          #
-          # "kitty" УБРАН по тем же двум причинам, что расписаны в шапке
+          # "kitty" УБРАН по двум причинам, что расписаны в шапке
           # kitty/theme.conf.in: встроенный берёт terminal_background как
           # есть (сильно подкрашенный обоями), а его apply.sh дописывает
           # строку include в ~/.config/kitty/kitty.conf — read-only симлинк
@@ -201,17 +193,6 @@ in
           # смене обоев. Держать шаблон включённым можно только вместе с той
           # строкой; раз строки нет — нет и шаблона.
           community_ids = [ "zen-browser" "obsidian" "lazygit" "yazi" "telegram" ];
-
-          # Свой шаблон niri. input_path абсолютный (путь в /nix/store),
-          # так что noctalia берёт его как есть — resolveConfigPath
-          # достраивает только относительные пути.
-          # Файл в store read-only, но шаблон его лишь читает.
-          # post_hook не нужен: строка include уже стоит в config.kdl,
-          # а niri сам перечитывает конфиг при изменении файла.
-          user.niri = {
-            input_path = "${./niri/theme.kdl.in}";
-            output_path = "~/.config/niri/noctalia-theme.kdl";
-          };
 
           # Umbriel — шаблон ВСТРОЕННЫЙ (из пакета noctalia), но подключён
           # как user: у builtin "umbriel" apply.sh дописывает include в

@@ -48,7 +48,7 @@
 #
 # Ножницы были втрое уже (3→10), пока окно гасилось до opacity 0.92 в
 # niri: подмес обоев всё равно съедал разницу, и разгонять размах было
-# бессмысленно. Прозрачность снята (разбор — в home/niri/config.kdl),
+# бессмысленно. Прозрачность снята (разбор — в git-истории home/niri/config.kdl),
 # теперь картинка видна как есть, и размах имеет смысл.
 # noctalia-gradient-top {{colors.surface.default.hex | set_saturation 12 | set_lightness 2}}
 # noctalia-gradient-bottom {{colors.surface.default.hex | set_saturation 18 | set_lightness 14}}

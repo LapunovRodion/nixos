@@ -1,6 +1,6 @@
-# Umbriel — композитор от авторов noctalia. Перенос home/niri/config.kdl:
-# раскладка, бинды и вид — те же, где у Umbriel есть аналог.
-# niri остаётся запасной сессией (tuigreet, F3), его конфиг не тронут.
+# Umbriel — композитор от авторов noctalia. Перенос конфига niri (удалён
+# 2026-10-08, лежит в git-истории: home/niri/config.kdl): раскладка, бинды
+# и вид — те же, где у Umbriel есть аналог.
 #
 # Справка: https://docs.noctalia.dev/umbriel/  Проверка: `umbriel validate`
 # Файл read-only (симлинк из /nix/store), поэтому всё машинозависимое и
@@ -21,7 +21,11 @@ files = ["noctalia.toml"]
 show_cheatsheet = false
 
 [input.keyboard]
-# ru-latin и custom:types — см. комментарий в niri/config.kdl (блок xkb).
+# ru-latin вместо ru — своя раскладка из ~/.config/xkb/symbols: кириллица
+# та же, но на 3-4 уровнях латиница, и хоткеи с Ctrl/Alt/Super работают в
+# русской группе как в английской. custom:types — штатная опция
+# xkeyboard-config, подключает ~/.config/xkb/types/custom; без неё тип
+# LATIN_FALLBACK не найдётся и раскладка не соберётся (см. home.nix).
 layout = "us,ru-latin"
 options = "grp:caps_toggle,custom:types"
 numlock_toggle = true
@@ -59,7 +63,7 @@ enabled = true       # в духе Caelestia (в niri были выключен�
 # правилом с opacity): сквозь прозрачные окна вроде Zen тогда проступали
 # размытые обои — «замыливало». Снято 2026-10-08.
 
-# Zen — «матовое стекло» (см. niri/config.kdl). Optimized-блюр (по
+# Zen — «матовое стекло» (см. home/zen/transparent.css). Optimized-блюр (по
 # умолчанию) размывает только обои — ровно как было в niri.
 [[window_rule]]
 match.app_id = "^zen-beta$"
@@ -87,8 +91,8 @@ blur_popups = true
 blur_optimized = false
 
 # ---- Бинды ----
-# Таблица ЗАМЕНЯЕТ встроенный набор целиком. Порядок и смысл — как в
-# niri/config.kdl. Нет аналога у Umbriel (и потому нет здесь):
+# Таблица ЗАМЕНЯЕТ встроенный набор целиком. Порядок и смысл — как были
+# в niri. Нет аналога у Umbriel (и потому нет здесь):
 # reset-window-height, expand-column-to-available-width,
 # center-visible-columns, tabbed-колонки (Mod+W), снимок окна (Alt+Print).
 [keybinds]

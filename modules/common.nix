@@ -263,8 +263,8 @@ in
     LC_TIME = "en_US.UTF-8";
   };
 
-  # Раскладка — в home/niri/config.kdl (блок xkb), services.xserver.xkb
-  # под niri никто не читает.
+  # Раскладка — в home/umbriel/config.toml ([input.keyboard]),
+  # services.xserver.xkb под Wayland-композитором никто не читает.
 
   # Define a user account. Don't forget to set a password with 'passwd'.
   users.users."artur" = {
@@ -288,38 +288,11 @@ in
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 
-  # Оверлей: xwayland-satellite из своего flake-входа (см. ниже).
-  # claude-code берётся из основного nixpkgs как есть: отдельный вход
-  # nixpkgs-cc и подмена манифеста сняты 2026-09-26, когда nixpkgs догнал
-  # ту же версию (2.1.280). Если снова понадобится CLI свежее nixpkgs —
-  # вернуть можно из git-истории.
-  nixpkgs.overlays = [
-    (final: prev: {
-        # xwayland-satellite из main: в релизном 0.8.2 меню-бар Steam
-        # закрывается сразу после открытия. Полное объяснение и условие
-        # удаления — у одноимённого input в flake.nix.
-        #
-        # Берётся derivation из nixpkgs с подменённым src, а НЕ готовый пакет
-        # из flake апстрима: тот собирает через cargoLock.lockFile, то есть
-        # fetchCrate по каждому крейту — а это https://crates.io/api/v1/...,
-        # который на UA nix'ового curl отвечает 403 (index.crates.io и
-        # static.crates.io при этом доступны, проверено). fetchCargoVendor
-        # ходит именно туда, поэтому сборка проходит. src — сам flake-вход,
-        # так что ревизия пиннится в flake.lock и своего sha256 не требует.
-        # cargoHash из nixpkgs не подошёл бы: Cargo.lock в main изменился.
-        xwayland-satellite = prev.xwayland-satellite.overrideAttrs (old: {
-          version = "0.8.2-unstable-2026-09-09";   # add2795, merge PR #494
-          src = inputs.xwayland-satellite;
-          cargoDeps = prev.rustPlatform.fetchCargoVendor {
-            src = inputs.xwayland-satellite;
-            hash = "sha256-s1gl9eR6Mt2QLrhfcowstPFjzwE/lz4PJhJzWYHoIHg=";
-          };
-          meta = old.meta // {
-            changelog = "https://github.com/Supreeeme/xwayland-satellite/pull/494";
-          };
-        });
-      })
-  ];
+  # Оверлеев нет. claude-code берётся из основного nixpkgs как есть: отдельный
+  # вход nixpkgs-cc и подмена манифеста сняты 2026-09-26, когда nixpkgs догнал
+  # ту же версию (2.1.280). xwayland-satellite из main (фикс меню Steam,
+  # PR #494) снят 2026-10-08 — фикс вошёл в 0.8.3, она уже в nixpkgs.
+  # Если что-то из этого снова понадобится — вернуть можно из git-истории.
 
   # ---------------------------------------------------------------
   # Nix: flakes + бинарный кэш noctalia
@@ -354,24 +327,23 @@ in
   };
 
   # ---------------------------------------------------------------
-  # 1. Композитор: Umbriel (основной), niri (запасной)
+  # 1. Композитор: Umbriel
   # ---------------------------------------------------------------
   # Umbriel — от авторов noctalia, конфиг в home/umbriel/config.toml.
   # Модуль и пакет — из nixpkgs (бинарник из кеша), свой flake не нужен.
+  # niri (был запасной сессией) убран 2026-10-08, конфиг — в git-истории.
   programs.umbriel.enable = true;
-  # Его umbriel-portals.conf знает только umbriel и gtk, а Secret niri
-  # брал из gnome-keyring — без этой строки он пропал бы в новой сессии.
+  # Его umbriel-portals.conf знает только umbriel и gtk, а Secret берётся
+  # из gnome-keyring (пароли Zen, Telegram, git-credential и т.п.).
   xdg.portal.config.umbriel = {
     default = [ "umbriel" "gtk" ];
     "org.freedesktop.impl.portal.Secret" = [ "gnome-keyring" ];
   };
-
-  # niri оставлен запасной сессией: Umbriel молодой, а без рабочей
-  # графики чинить систему неудобно. Убрать — когда Umbriel обкатан.
-  programs.niri.enable = true;
+  # Раньше его неявно включал модуль niri (mkDefault) — теперь явно.
+  services.gnome.gnome-keyring.enable = true;
 
   # Логин-менеджер: greetd + tuigreet. По умолчанию — Umbriel; F3 в
-  # tuigreet — выбор другой сессии (niri) из --sessions.
+  # tuigreet — выбор другой сессии из --sessions.
   services.greetd = {
     enable = true;
     settings.default_session = {
@@ -394,11 +366,9 @@ in
   programs.fuse.enable = true;
 
   # Thunar — графический файловый менеджер, основной (yazi остаётся для
-  # терминала). Nautilus niri тянул только ради окна выбора файлов портала
-  # gnome; с useNautilus = false модуль сам переключает FileChooser на gtk,
-  # и org.freedesktop.FileManager1 («Показать в папке» из браузера/Telegram)
-  # остаётся одному Thunar — у D-Bus при двух владельцах побеждает первый.
-  programs.niri.useNautilus = false;
+  # терминала). FileChooser портала — gtk (default в xdg.portal.config.umbriel),
+  # org.freedesktop.FileManager1 («Показать в папке» из браузера/Telegram)
+  # принадлежит одному Thunar.
   programs.thunar.enable = true;
   services.gvfs.enable = true;    # корзина, сеть (smb/sftp), телефоны по MTP
   services.tumbler.enable = true; # миниатюры картинок и видео
@@ -461,10 +431,10 @@ in
     # `node bin/archify.mjs`, а claude-code свой node наружу не отдаёт.
     # Зависимостей у скилла нет, поэтому голого интерпретатора хватает.
     nodejs_22
-    # niri окружение
+    # графическое окружение
     kitty                # терминал (единственный; вместо alacritty/rio)
     xwayland-satellite   # X11-приложения
-    # Зеркалирование монитора. Своего дублирования выходов у niri нет:
+    # Зеркалирование монитора. Своего дублирования выходов у композитора нет:
     # wl-mirror показывает содержимое одного выхода в окне, которое можно
     # сразу развернуть на весь экран на другом мониторе.
     #

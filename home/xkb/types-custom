@@ -11,7 +11,7 @@
 // типы numpad(mac) и PC_CONTROL_LEVEL2 в xkeyboard-config.
 //
 // Файл кладётся в ~/.config/xkb/types/custom (см. home/home.nix) и
-// подключается опцией `custom:types` в home/niri/config.kdl. Опция штатная,
+// подключается опцией `custom:types` в home/umbriel/config.toml. Опция штатная,
 // она есть в rules/evdev самого xkeyboard-config.
 
 default partial xkb_types "custom" {

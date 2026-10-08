@@ -1,5 +1,5 @@
 {
-  description = "artur NixOS: laptop + desktop, niri + noctalia + hysteria + claude";
+  description = "artur NixOS: laptop + desktop, umbriel + noctalia + hysteria + claude";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -107,7 +107,7 @@
     # обновить vendorHash, и сборка падает на hash mismatch go-modules.
     # Обновление: сменить тег → nix flake update tuios → rebuild.
     tuios = {
-      url = "github:Gaurav-Gosain/tuios/v0.8.0";
+      url = "github:Gaurav-Gosain/tuios/v0.9.1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -119,30 +119,6 @@
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
       inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    # xwayland-satellite из main, а не из nixpkgs. В 0.8.2 (последний релиз, он
-    # же в nixpkgs) меню-бар Steam — Steam/View/Friends/Games/Help и попап
-    # «Add a Game» — закрывается сам через ~35 мс после открытия: сателлит
-    # фокусирует override-redirect popup'ы, а клиент Steam с сентябрьского
-    # обновления в ответ отдаёт фокус обратно главному окну. Под интегрированным
-    # XWayland (KDE) и под rootful Xwayland тот же Steam работает нормально.
-    # Апстрим: issue #489, фикс — PR #494 («never focus override-redirect
-    # popups; offer WM_TAKE_FOCUS when advertised»), в релиз ещё не попал,
-    # поэтому пин ровно на его merge-коммит.
-    #
-    # УДАЛИТЬ (вместе с подменой в overlay в modules/common.nix), когда в
-    # nixpkgs приедет 0.8.3:  nix eval nixpkgs#xwayland-satellite.version
-    #
-    # Вход нужен ТОЛЬКО как пин исходников: собирается всё равно derivation'ом
-    # из nixpkgs, у которого подменён src (почему — в overlay в common.nix).
-    # Зато ревизия живёт в flake.lock и свой sha256 на src добывать не нужно.
-    # rust-overlay апстриму нужен только для devShell — отключаем через
-    # follows = "", как он сам и советует.
-    xwayland-satellite = {
-      url = "github:Supreeeme/xwayland-satellite/add2795134593faafce60e404a0a75df68e9ee0c";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.rust-overlay.follows = "";
     };
   };
 
@@ -170,7 +146,7 @@
             # Когда HM забирает под себя файл, который до этого лежал в ~/.config
             # обычным файлом, активация падает: «existing file is in the way».
             # С этим ключом HM сам отодвигает его в <имя>.hm-bak и идёт дальше.
-            # Понадобилось при переносе niri/config.kdl в конфиг.
+            # Понадобилось при переносе конфига niri в git.
             home-manager.backupFileExtension = "hm-bak";
             home-manager.users.artur = import ./home/home.nix;
           }

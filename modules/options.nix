@@ -31,7 +31,7 @@
       example = "eDP-1";
       description = ''
         Выход, на котором висят виджеты рабочего стола (часы, погода,
-        sysmon, орб). Имя — из `niri msg outputs`.
+        sysmon, орб). Имя — из `wlr-randr` (или секций [output.*] umbriel).
       '';
     };
 
@@ -89,21 +89,11 @@
       '';
     };
 
-    niriOutputs = lib.mkOption {
-      type = lib.types.path;
-      description = ''
-        Файл с блоками output {} для niri. Кладётся в
-        ~/.config/niri/outputs.kdl, оттуда его подхватывает include
-        в config.kdl. Разрешения и раскладка мониторов — единственное,
-        что в конфиге композитора зависит от машины.
-      '';
-    };
-
     umbrielOutputs = lib.mkOption {
       type = lib.types.path;
       description = ''
-        То же, что niriOutputs, для Umbriel: секции [output.*] и всё
-        машинозависимое (autostart, правила под конкретные мониторы).
+        Машинозависимая часть конфига Umbriel: секции [output.*] и всё
+        остальное, что зависит от машины (autostart, правила под мониторы).
         Кладётся в ~/.config/umbriel/outputs.toml, подключается [include].
       '';
     };
@@ -114,7 +104,7 @@
       description = ''
         Конфиг wayvnc (~/.config/wayvnc/config): address/port/enable_auth.
         null там, где VNC не нужен. Какой ВЫХОД захватывать — не сюда,
-        это только CLI-флаг -o в spawn-at-startup (см. outputs.kdl),
+        это только CLI-флаг -o в autostart (см. hosts/<машина>/umbriel.toml),
         в конфиг-файле wayvnc такого ключа нет.
       '';
     };

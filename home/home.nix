@@ -102,27 +102,12 @@ in
   home.stateVersion = "26.05";
 
   # =============================================================
-  # niri — конфиг композитора, теперь в git.
-  #
-  # Модуля programs.niri в home-manager нет, поэтому файл подключается
-  # как есть. Источник правды — ~/nixos/niri/config.kdl, в ~/.config
-  # ложится read-only симлинк в /nix/store.
-  #
-  # ВАЖНО: раз файл read-only, дописать в него строку include больше
-  # никто не может — apply.sh шаблонов noctalia именно это и делал.
-  # Поэтому include стоит в самом файле, в конце (см. niri/config.kdl).
-  # =============================================================
-  xdg.configFile."niri/config.kdl".source = ./niri/config.kdl;
-
-  # Единственная машинозависимая часть конфига композитора — блоки output
-  # (разрешение, масштаб, взаимное расположение мониторов). Файл берётся из
-  # hosts/<машина>/outputs.kdl и подключается строкой include в config.kdl.
-  xdg.configFile."niri/outputs.kdl".source = osConfig.local.niriOutputs;
-
-  # Umbriel — основной композитор, niri выше остаётся запасным. Тот же
-  # приём: общий конфиг + машинозависимый файл через include. Модуль
-  # programs.umbriel из home-manager здесь не нужен — он умеет только
+  # Umbriel — конфиг композитора: общий файл + машинозависимый
+  # (мониторы) через include. Оба — read-only симлинки в /nix/store,
+  # поэтому всё генерируемое (цвета noctalia) тоже подключается include'ом.
+  # Модуль programs.umbriel из home-manager не нужен — он умеет только
   # положить этот же файл.
+  # =============================================================
   xdg.configFile."umbriel/config.toml".source = ./umbriel/config.toml;
   xdg.configFile."umbriel/outputs.toml".source = osConfig.local.umbrielOutputs;
 
@@ -130,8 +115,7 @@ in
   # Раскладка, в которой хоткеи не зависят от языка.
   #
   # Проблема: в кириллической группе Ctrl+ф — это Ctrl+Cyrillic_ef, и
-  # приложение такой хоткей не узнаёт. Свои бинды niri переживает (он ищет
-  # латинский кейсим по всем группам), а вот GTK/Qt/Electron, префикс
+  # приложение такой хоткей не узнаёт. GTK/Qt/Electron, префикс
   # мультиплексора (Ctrl+a) и биндинги fish/readline ломаются все разом.
   #
   # Решение: своя раскладка ru-latin, где на 3-4 уровнях лежит латиница, и
@@ -140,7 +124,7 @@ in
   #
   # Пересобирать системный xkeyboard-config не нужно: libxkbcommon
   # просматривает ~/.config/xkb ПЕРВЫМ, а тип подключается штатной опцией
-  # custom:types (см. options в niri/config.kdl).
+  # custom:types (см. [input.keyboard] в umbriel/config.toml).
   # =============================================================
   xdg.configFile."xkb/types/custom".source = ./xkb/types-custom;
   xdg.configFile."xkb/symbols/ru-latin".source = ./xkb/symbols-ru-latin;
@@ -824,11 +808,11 @@ in
     };
 
     settings = {
-      # Рамку и тень рисует niri, свои декорации не нужны.
+      # Рамку и тень рисует композитор, свои декорации не нужны.
       hide_window_decorations = "yes";
       window_padding_width = 14;
       # Когда окно в терминале одно (обычный случай — разделением занят
-      # niri), воздуха можно дать больше. На сплиты продолжает
+      # композитор), воздуха можно дать больше. На сплиты продолжает
       # действовать window_padding_width выше.
       single_window_padding_width = 20;
       confirm_os_window_close = 0;
@@ -840,7 +824,7 @@ in
       # 0.92), а два коэффициента иначе перемножались бы. Теперь и та
       # window-rule снята — при 0.92 поверх светлых обоев фон терминала
       # на две трети состоял из обоев, и никакой чернотой темы это не
-      # пробивалось. Замеры и разбор — в home/niri/config.kdl, на месте
+      # пробивалось. Замеры и разбор — в git-истории home/niri/config.kdl, на месте
       # снятого правила.
       #
       # background_blur включать бессмысленно при любом раскладе: он
@@ -1061,7 +1045,7 @@ in
   # --- монитор ресурсов (вместо glances) ---
   programs.btop.enable = true;
 
-  # --- satty: разметка скриншота (Mod+Ctrl+S в niri) ---
+  # --- satty: разметка скриншота (Mod+Ctrl+S в umbriel) ---
   # Настройки здесь, а не флагами в бинде: так их подхватывает любой вызов
   # satty, в том числе руками из терминала.
   programs.satty = {
@@ -1069,15 +1053,14 @@ in
     settings.general = {
       early-exit = true;          # Ctrl+C / Ctrl+S — сделал и закрылся
       copy-command = "wl-copy";
-      # Рядом со снимками niri (screenshot-path в niri/config.kdl).
+      # Рядом с остальными снимками экрана.
       # Путь абсолютный: ~ satty в конфиге не раскрывает.
       output-filename = "/home/artur/Pictures/Screenshots/satty-%Y-%m-%d_%H-%M-%S.png";
     };
   };
 
-  # Каталог для снимков. niri создаёт его сам при первом Print, а satty —
-  # нет: на чистой машине Ctrl+S в satty упал бы, пока не снят хоть один
-  # скриншот через niri.
+  # Каталог для снимков. satty сам его не создаёт: на чистой машине
+  # Ctrl+S в satty упал бы.
   systemd.user.tmpfiles.rules = [ "d %h/Pictures/Screenshots 0755 - - -" ];
 
   # --- tldr: короткие примеры команд вместо man ---

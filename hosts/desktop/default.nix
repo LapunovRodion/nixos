@@ -18,7 +18,7 @@
     pkgs.wayvnc
   ];
 
-  # 5900 — wayvnc (см. hosts/desktop/outputs.kdl). Открыт для всей локалки,
+  # 5900 — wayvnc (см. hosts/desktop/umbriel.toml). Открыт для всей локалки,
   # не только для tailscale0: через Tailscale картинка сильно лагала
   # (WireGuard-туннель добавляет задержку/накладные расходы поверх и так
   # небыстрого RFB-протокола), в локальной сети должно быть заметно
@@ -55,7 +55,7 @@
   hardware.graphics.enable = true;
   services.xserver.videoDrivers = [ "nvidia" ];
   hardware.nvidia = {
-    # Обязателен для Wayland: без nvidia_drm.modeset=1 niri не запустится.
+    # Обязателен для Wayland: без nvidia_drm.modeset=1 композитор не запустится.
     modesetting.enable = true;
     # Открытый модуль ядра поддерживается начиная с Turing; Ampere подходит.
     open = true;
@@ -69,16 +69,16 @@
   # ---- Чем эта машина отличается (см. modules/options.nix) ----
   local = {
     flakeAttr = "desktop";
-    # Сняты с живой машины (`niri msg outputs`). Единственный DisplayPort
+    # Сняты с живой машины (тогда — `niri msg outputs`). Единственный DisplayPort
     # определился как DP-2, DP-1 не существует — на угаданном имени виджеты
     # рабочего стола не появлялись нигде, потому что вешать их было не на что.
-    # Те же имена стоят в ./outputs.kdl.
+    # Те же имена стоят в ./umbriel.toml.
     #
     # Главный — центральный Dell P2214H: на нём часы, погода, sysmon и орб.
     primaryOutput = "DP-2";
     # Порядок слева направо: Acer, Dell, Samsung.
     # 2026-08-13: кабели Acer/Samsung физически переткнуты между портами
-    # видеокарты, имена HDMI-A-1/HDMI-A-2 поменялись местами (см. ./outputs.kdl).
+    # видеокарты, имена HDMI-A-1/HDMI-A-2 поменялись местами (см. ./umbriel.toml).
     outputs = [ "HDMI-A-1" "DP-2" "HDMI-A-2" ];
     # 1920x1080 при scale 1 → логический размер равен физическому.
     screen = { width = 1920; height = 1080; };
@@ -88,7 +88,6 @@
     hasBattery = false;
     # Имя каталога профиля — из ~/.config/zen/profiles.ini.
     zenProfileDir = "zroyjfew.Default Profile";
-    niriOutputs = ./outputs.kdl;
     umbrielOutputs = ./umbriel.toml;
     wayvncConfig = ./wayvnc-config;
   };
