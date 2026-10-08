@@ -75,6 +75,7 @@
     hasBattery = true;
     zenProfileDir = "vkvdhp86.Default Profile";
     niriOutputs = ./outputs.kdl;
+    umbrielOutputs = ./umbriel.toml;
 
     # Окружение разработки (см. modules/dev.nix). Выставить в false и
     # сделать switch — podman и libvirt уйдут из системы.

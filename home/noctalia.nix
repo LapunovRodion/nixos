@@ -91,7 +91,8 @@ in
 
       # ---- Оболочка ------------------------------------------------
       shell = {
-        font_family = "JetBrainsMono Nerd Font";
+        # Rubik — шрифт Caelestia (ставится в modules/common.nix, fonts).
+        font_family = "Rubik";
         lang = "ru";
         app_icon_color = "primary";
         polkit_agent = true; # агент авторизации: без него sudo-диалоги GUI не всплывают
@@ -102,35 +103,49 @@ in
         # писала «unknown section» и молча игнорировала.
         launch_apps_as_systemd_services = true;
 
-        # Панели (лаунчер, control center, буфер, сессия) — стеклянные.
-        # solid → soft → glass: у glass фон полупрозрачный и карточки
-        # внутри панели тоже просвечивают. Работает вместе с [backdrop]
-        # ниже: панель прозрачная, а десктоп под ней размыт.
-        panel.transparency_mode = "glass";
+        # ---- В духе Caelestia (выбрано 2026-10-08 в конфигураторе) ----
+        # Скругления всего шелла крупнее заводских: 0 — квадрат, 2 — максимум.
+        corner_radius_scale = 1.5;
+
+        # Подписи раскладок двумя буквами (виджет keyboard_layout в баре).
+        # Имена точные, из `umbriel keyboard-layouts`: ru-latin xkb
+        # называет «Russian (latin fallback)».
+        keyboard_layout.custom_labels = {
+          "English (US)" = "EN";
+          "Russian (latin fallback)" = "RU";
+        };
+
+        # Панели «мягкие»: solid → soft → glass. Чуть прозрачные, размытие
+        # под ними даёт [backdrop] ниже и layer_rule в umbriel/config.toml.
+        # Все выезжают из бара (attached), как ящики Caelestia, а не
+        # всплывают по центру; contact_shadow у бара прячет шов.
+        panel = {
+          transparency_mode = "soft";
+          launcher_placement = "attached";
+          clipboard_placement = "attached";
+          control_center_placement = "attached";
+          session_placement = "attached";
+        };
 
         # Множитель скорости ВСЕХ анимаций шелла (панели, лаунчер Mod+D,
         # OSD): длительность делится на него (animation_manager.cpp), 2.0 —
         # вдвое быстрее заводского. Диапазон 0.1–4.0. Совсем без анимаций —
-        # animation.enabled = false.
-        animation.speed = 2.0;
+        # animation.enabled = false. Было 2.0; под Caelestia — заводская
+        # скорость, чтобы выезд панелей из бара был виден.
+        animation.speed = 1.0;
       };
 
       # ---- Backdrop ------------------------------------------------
       # Слой между десктопом и открытой панелью: размывает и подкрашивает
       # ВСЁ, что под ней.
       #
-      # ВЫКЛЮЧЕН намеренно. Обои переехали в backdrop niri, а фон воркспейса
-      # стал прозрачным (см. layer-rule и background-color в niri/config.kdl)
-      # — и этот слой начал размывать обои ПОСТОЯННО, а не только под
-      # открытой панелью. Раньше он был не виден, потому что лежал поверх
-      # непрозрачного фона воркспейса.
-      #
-      # Плата: стеклянные панели (panel.transparency_mode = "glass" выше)
-      # остаются полупрозрачными, но без размытия под ними. Если текст на
-      # панелях станет плохо читаться — вернуть enabled = true, а обои из
-      # backdrop убрать.
+      # ВКЛЮЧЁН с переездом на Umbriel. В niri он был выключен: обои там
+      # лежат в backdrop композитора, фон воркспейса прозрачный, и этот слой
+      # размывал обои ПОСТОЯННО (см. layer-rule в niri/config.kdl). В
+      # Umbriel обои — обычный background-слой, проблемы нет.
+      # Плата: в запасной сессии niri обои снова будут размыты всегда.
       backdrop = {
-        enabled = false;
+        enabled = true;
         blur_intensity = 0.5; # 0.0 — без размытия, 1.0 — максимум
         tint_intensity = 0.3; # подкраска цветом surface поверх размытия
       };
@@ -140,7 +155,8 @@ in
         mode = "dark";
         # Палитра генерируется ИЗ ОБОЕВ (Material You), а не берётся готовой.
         source = "wallpaper";
-        wallpaper_scheme = "soft";
+        # m3-content — ближе всего к цветам самих обоев. Было "soft".
+        wallpaper_scheme = "m3-content";
         # Запасные варианты — не действуют, пока source = "wallpaper",
         # но сохранены как выбор: на них переключаться сменой source.
         builtin = "Gruvbox";
@@ -197,6 +213,16 @@ in
             output_path = "~/.config/niri/noctalia-theme.kdl";
           };
 
+          # Umbriel — шаблон ВСТРОЕННЫЙ (из пакета noctalia), но подключён
+          # как user: у builtin "umbriel" apply.sh дописывает include в
+          # config.toml, а тот — read-only симлинк (та же беда, что с kitty).
+          # Include уже стоит в home/umbriel/config.toml, Umbriel сам
+          # перечитывает файл при изменении.
+          user.umbriel = {
+            input_path = "${config.programs.noctalia.package}/share/noctalia/assets/templates/umbriel/umbriel.toml";
+            output_path = "~/.config/umbriel/noctalia.toml";
+          };
+
           # Тема Claude Code. Формат — свой, кастомные темы он читает из
           # ~/.claude/themes/*.json, имя файла становится slug'ом. Каталог
           # noctalia создаст сама, а post_hook не нужен: Claude Code держит
@@ -248,34 +274,31 @@ in
       };
 
       # ---- Бар -----------------------------------------------------
+      # Плавающий «остров» сверху: отступ от края и от концов экрана.
+      # Набор виджетов — как у Caelestia: лаунчер и столы, заголовок окна
+      # по центру, статус и часы справа. Прежний набор (плагины nix-monitor,
+      # nix-status, pulse, media, раскладка, часы капсулой) — в git-истории.
+      # control-center оставлен сверх Caelestia: иначе центр управления
+      # (медиа, погода, графики) открыть нечем.
       bar.default = {
-        capsule = true;
-        margin_ends = 0;
-        start = [ "group:g1" "wallpaper" "pulse" "nix-monitor" "nix-status" "keyboard_layout" ];
-        center = [ "workspaces" ];
+        position = "top";
+        thickness = 36; # было 44 — бар выходил слишком высоким
+        margin_edge = 10;
+        # Длиннее, чем было (180): плагинов в баре прибавилось.
+        margin_ends = 80;
+        # Иконки и текст на 20% крупнее заводских — мелкие терялись.
+        scale = 1.2;
+        capsule = false;
+        contact_shadow = true; # тень на шве бара и выехавшей из него панели
+        # Часы и раскладка — слева, сразу за лаунчером.
+        start = [ "launcher" "clock" "keyboard_layout" "workspaces" "umbriel-layout" ];
+        center = [ "active_window" ];
         # battery — только там, где батарея есть: на десктопе виджет
         # показывал бы пустоту.
-        end = [
-          "control-center"
-          "tray"
-          "media"
-          "network"
-          "volume"
-          "bluetooth"
-        ]
-        ++ lib.optional hasBattery "battery"
-        ++ [ "session" ];
-        # Часы — отдельной «капсулой» на фоне surface_variant.
-        capsule_group = [
-          {
-            id = "g1";
-            enabled = true;
-            members = [ "clock" ];
-            fill = "surface_variant";
-            opacity = 1.0;
-            padding = 6.0;
-          }
-        ];
+        # Плагины (см. plugins.enabled): агенты, игровой режим, процессы, OCR.
+        end = [ "claude-cockpit" "gamer-mode" "procmon" "ocr" "tailscale" "tray" "network" "bluetooth" "volume" ]
+          ++ lib.optional hasBattery "battery"
+          ++ [ "control-center" "session" ];
       };
 
       # Привязка имён виджетов бара к записям плагинов.
@@ -285,11 +308,37 @@ in
         pulse.type = "lowcache/claude-companion:pulse";
         nix-monitor.type = "avivbintangaringga/nix-monitor:nix-monitor";
         nix-status.type = "mindnbytes/nix-status:status";
+        umbriel-layout.type = "noctalia/umbriel-companion:bar";
+        # В баре — только значок, без процентов лимитов (5 ч / неделя):
+        # они остаются в панели по клику.
+        claude-cockpit = {
+          type = "nightwatch75/claude-cockpit:widget";
+          usage_percent_display = "none";
+        };
+        gamer-mode.type = "nomadcxx/gamer-mode:gamermode";
+        # Только значок CPU, без числа процессов рядом.
+        procmon = {
+          type = "weinguyen/procmon:widget";
+          show_count = false;
+        };
+        ocr.type = "fel/ocr:ocr";
+        tailscale.type = "davemhammer/tailscale:status";
+
+        # Раскладка в баре — короткой подписью (сами подписи — в
+        # shell.keyboard_layout.custom_labels выше).
+        keyboard_layout.display = "short";
+
+        # Пилюли с номерами; пустые столы не показываются.
+        workspaces = {
+          style = "regular";
+          hide_when_empty = true;
+        };
       };
 
       # ---- Док -----------------------------------------------------
+      # Выключен: в Caelestia дока нет, запуск — лаунчером из бара.
       dock = {
-        enabled = true;
+        enabled = false;
         reserve_space = false; # не отъедать место у окон
         smart_auto_hide = true; # прячется, когда на воркспейсе есть окна
       };
@@ -345,6 +394,33 @@ in
           # QR-код из текста/ссылки, офлайн (qrencode). Mod+Alt+Q в niri.
           "yocraft/qrcode"
 
+          # ---- Выбрано 2026-10-08 на «полке плагинов» ----
+          # Раскладка текущего стола Umbriel (scrolling/dwindle/master) и
+          # подкарта клавиш рядом со столами — пара к Mod+W. Официальный.
+          "noctalia/umbriel-companion"
+          # Claude Code: лимиты подписки (5 ч / неделя), токены и стоимость;
+          # все локальные сессии по проектам — resume в kitty одним кликом;
+          # правка CLAUDE.md. Лимиты берёт у Anthropic по токену из
+          # ~/.claude/.credentials.json — тем же запросом, что сам Claude Code.
+          # (Был fel/agent-glow — снят 2026-10-08, этот нагляднее.)
+          "nightwatch75/claude-cockpit"
+          # Игровой режим: правый клик — приостановить фоновых «пожирателей»
+          # (встроенный список: торренты, ollama, fstrim…) и включить
+          # performance; повторно — вернуть как было. Левый клик — панель
+          # с CPU/GPU/RAM. Свой список — настройка targets (JSON).
+          "nomadcxx/gamer-mode"
+          # Таблица процессов в стиле bottom: сортировка, поиск, kill.
+          "weinguyen/procmon"
+          # Выделил область → распознанный текст в буфере (tesseract,
+          # языки — plugin_settings ниже, пакет — modules/common.nix).
+          "fel/ocr"
+          # Для стола (см. desktop_widgets): обратный отсчёт и стикеры.
+          "noctalia/timer"
+          "remo/noctes"
+          # Tailscale: подключение, пиры, exit node, флаги — из бара. Права —
+          # оператор в modules/common.nix (services.tailscale.extraSetFlags).
+          "davemhammer/tailscale"
+
           # ---- Лаунчер (Mod+D): префикс + запрос ----
           # Встроенное без префикса: приложения, калькулятор с единицами и
           # валютами (`100 usd to byn`, курсы тянет сам, в т.ч. НБРБ), эмодзи,
@@ -368,6 +444,16 @@ in
         nixos_configuration = flakeAttr;
       };
 
+      # Без них cockpit искал бы VS Code/Zed и сам выбирал терминал.
+      # editor_command делится по пробелам, путь к CLAUDE.md дописывается в конец.
+      plugin_settings."nightwatch75/claude-cockpit" = {
+        terminal = "kitty";
+        editor_command = "kitty -e nvim";
+      };
+
+      # Русский + английский разом: tesseract склеивает модели через «+».
+      plugin_settings."fel/ocr".languages = "eng+rus";
+
       plugin_settings."avivbintangaringga/nix-monitor" = {
         # Кнопка Update. Порядок намеренный: бамп lock → КОММИТ → rebuild,
         # чтобы поколение всегда отвечало коммиту. Коммитится только
@@ -386,6 +472,13 @@ in
       # размер великоват (там 0.7), на обычном 1080p — в самый раз.
       notification.scale = notificationScale;
       osd.scale = osdScale;
+      # Громкость/яркость — вертикальной полосой у правого края, как в
+      # Caelestia (для вертикальной ориентации позиция — position_vertical).
+      osd.orientation = "vertical";
+      osd.position_vertical = "center_right";
+
+      # Экран блокировки — на размытом снимке рабочего стола, а не на обоях.
+      lockscreen.blurred_desktop = true;
 
       # ---- Бездействие ---------------------------------------------
       idle = {
@@ -406,126 +499,121 @@ in
       # загрузами (eDP-1 / eDP-2) — вылечено порядком загрузки модулей DRM,
       # см. boot.initrd.kernelModules в hosts/laptop/default.nix.
       # cx/cy — координаты центра в логических пикселях.
+      # Набор выбран 2026-10-08 в конструкторе стола, координаты выставлены
+      # вручную в редакторе (noctalia msg desktop-widgets-edit) и перенесены
+      # сюда из state: сам редактор пишет в ~/.local/state/noctalia/
+      # settings.toml, а его чистит noctalia-state-reset при каждом старте.
+      # Слева — часы и погода, справа — календарь, стикер, таймер, снизу —
+      # визуализатор. Правый край и низ — через fromRight/fromBottom, чтобы
+      # на экране ноута (1645×1029) виджеты не уехали за край.
+      #
+      # Визуализатор — только там, где нет батареи. 2026-09-24 powertop
+      # показал: анимированные виджеты не дают экрану ноута 120 Гц
+      # простаивать (kworker commit_work 64% CPU, 22–25 Вт в простое).
+      # Остальные статичные — можно везде.
       desktop_widgets = {
         schema_version = 2;
         widget_order = [
-          "desktop-widget-0000000000000001"
-          # Остальные скрыты ради батареи (см. блок ниже):
-          # "desktop-widget-0000000000000002"
-          # "desktop-widget-0000000000000003"
-          # "desktop-widget-0000000000000004"
-          # "desktop-widget-0000000000000005"
-          # "desktop-widget-0000000000000006"
-          # "desktop-widget-0000000000000007"
-        ];
+          "desktop-widget-0000000000000004"
+          "desktop-weather"
+          "desktop-calendar"
+          "desktop-timer"
+          "desktop-note-1"
+        ] ++ lib.optional (!hasBattery) "desktop-widget-0000000000000003";
         grid = { visible = true; cell_size = 16; major_interval = 4; };
         widget = {
-          # часы
-          desktop-widget-0000000000000001 = {
+          # часы: только время, по центру своей коробки, цветом primary,
+          # шрифт — общий шелла (Rubik)
+          desktop-widget-0000000000000004 = {
             type = "clock";
             output = primaryOutput;
-            cx = 247.0; cy = 130.5;
-            box_width = 384.0; box_height = 128.0;
+            cx = 216.0; cy = 148.0;
+            box_width = 304.0; box_height = 144.0;
             rotation = 0.0;
             settings = {
               clock_style = "digital";
-              font_family = "JetBrainsMono Nerd Font";
-              center_text = false;
+              center_text = true;
+              color = "primary";
               background = false;
-              background_radius = 0;
-              shadow = true;
-              timezone = "";
             };
           };
-          # Скрыто 2026-09-24 ради батареи: powertop показал, что анимированные
-          # виджеты (визуализатор с show_when_idle, графики sysmon, орб) не дают
-          # экрану 120 Гц простаивать — kworker commit_work ел 64% CPU, ноут
-          # тянул 22–25 Вт в простое. Вернуть: снять комментарий и добавить
-          # id обратно в widget_order.
-          /*
-          # монитор ресурсов: RAM + CPU графиком
-          desktop-widget-0000000000000002 = {
-            type = "sysmon";
+          # погода с прогнозом на 3 дня (служба — weather.enabled ниже,
+          # координаты — location.auto_locate)
+          desktop-weather = {
+            type = "weather";
             output = primaryOutput;
-            cx = 151.0; cy = 258.5;
-            box_width = 192.0; box_height = 128.0;
+            cx = 247.0; cy = 316.0;
+            box_width = 416.0; box_height = 208.0;
             rotation = 0.0;
             settings = {
-              display = "graph";
-              gauge_layout = "horizontal";
-              stat = "ram_pct";
-              stat2 = "cpu_usage";
-              background = true;
+              show_forecast = true;
+              forecast_days = 3;
+              shadow = true;
+              background = false;
               background_radius = 0;
             };
           };
-          # визуализатор звука — по центру, у нижнего края
+          # сетка месяца; событий нет, пока не подключён [calendar]
+          desktop-calendar = {
+            type = "calendar";
+            output = primaryOutput;
+            cx = fromRight 532.0; cy = 316.0;
+            box_width = 384.0; box_height = 416.0;
+            rotation = 0.0;
+            settings = {
+              show_events = false;
+              show_week_numbers = false;
+              background = true;
+              background_opacity = 0.0;
+              background_radius = 0;
+            };
+          };
+          # Стикер remo/noctes. Объявлен ЗДЕСЬ, а не кнопкой «+» плагина:
+          # плагин пишет листы в state, а его чистит noctalia-state-reset —
+          # лист пропадал бы на каждом старте шелла. key — постоянная связь
+          # с заметкой в notes.json плагина.
+          desktop-note-1 = {
+            type = "remo/noctes:note";
+            output = primaryOutput;
+            cx = fromRight 220.0; cy = 220.0;
+            box_width = 240.0; box_height = 224.0;
+            rotation = 0.0;
+            settings = {
+              key = "desk-1";
+              background_opacity = 0.0;
+              background_radius = 0;
+            };
+          };
+          # таймер плагина noctalia/timer — тот же отсчёт, что в его панели
+          desktop-timer = {
+            type = "noctalia/timer:desktop";
+            output = primaryOutput;
+            cx = fromRight 220.0; cy = 428.0;
+            box_width = 240.0; box_height = 192.0;
+            rotation = 0.0;
+            settings = {
+              color = "primary";
+              background = true;
+              background_opacity = 0.0;
+              background_padding = 0;
+              background_radius = 0;
+            };
+          };
+          # визуализатор звука — по центру у нижнего края (только desktop)
           desktop-widget-0000000000000003 = {
             type = "audio_visualizer";
             output = primaryOutput;
-            cx = centerX; cy = fromBottom 130.5;
+            cx = centerX; cy = fromBottom 108.0;
             box_width = 0.0; box_height = 0.0;
             rotation = 0.0;
             settings = { bands = 32; show_when_idle = true; };
           };
-          # погода (координаты — из location.auto_locate)
-          desktop-widget-0000000000000004 = {
-            type = "weather";
-            output = primaryOutput;
-            cx = 247.0; cy = 402.5;
-            box_width = 384.0; box_height = 160.0;
-            rotation = 0.0;
-            settings = {
-              show_forecast = true;
-              background = false;
-              background_radius = 0;
-            };
-          };
-          # орб claude-companion: дышит в такт сессии Claude Code
-          desktop-widget-0000000000000005 = {
-            type = "lowcache/claude-companion:orb";
-            output = primaryOutput;
-            cx = 343.0; cy = 258.5;
-            box_width = 192.0; box_height = 128.0;
-            rotation = 0.0;
-            settings = {
-              background = true;
-              background_radius = 0;
-            };
-          };
-          # Сеть двумя стрелками-циферблатами у правого края: приём и
-          # отдача разнесены по разным виджетам, потому что у sysmon на
-          # циферблате помещается одна величина плюс вторая мелким
-          # шрифтом (здесь — температура CPU под приёмом).
-          desktop-widget-0000000000000006 = {
-            type = "sysmon";
-            output = primaryOutput;
-            cx = fromRight 118.0; cy = 98.5;
-            box_width = 128.0; box_height = 64.0;
-            rotation = 0.0;
-            settings = {
-              display = "gauge";
-              stat = "net_rx";
-              stat2 = "cpu_temp";
-              background = false;
-            };
-          };
-          desktop-widget-0000000000000007 = {
-            type = "sysmon";
-            output = primaryOutput;
-            cx = fromRight 118.0; cy = 162.5;
-            box_width = 128.0; box_height = 64.0;
-            rotation = 0.0;
-            settings = {
-              display = "gauge";
-              stat = "net_tx";
-              stat2 = "";
-              background = false;
-            };
-          };
-          */
         };
       };
+
+      # Служба погоды. Была выключена (заводское enabled = false), и виджет
+      # погоды показывал заглушку. Координаты — location.auto_locate по IP.
+      weather.enabled = true;
 
       # ---- Виджеты локскрина ---------------------------------------
       # Форма ввода пароля кладётся на КАЖДЫЙ выход машины: на многомониторной

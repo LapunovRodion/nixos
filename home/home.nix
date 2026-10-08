@@ -119,6 +119,13 @@ in
   # hosts/<машина>/outputs.kdl и подключается строкой include в config.kdl.
   xdg.configFile."niri/outputs.kdl".source = osConfig.local.niriOutputs;
 
+  # Umbriel — основной композитор, niri выше остаётся запасным. Тот же
+  # приём: общий конфиг + машинозависимый файл через include. Модуль
+  # programs.umbriel из home-manager здесь не нужен — он умеет только
+  # положить этот же файл.
+  xdg.configFile."umbriel/config.toml".source = ./umbriel/config.toml;
+  xdg.configFile."umbriel/outputs.toml".source = osConfig.local.umbrielOutputs;
+
   # =============================================================
   # Раскладка, в которой хоткеи не зависят от языка.
   #

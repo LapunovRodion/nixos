@@ -99,6 +99,15 @@
       '';
     };
 
+    umbrielOutputs = lib.mkOption {
+      type = lib.types.path;
+      description = ''
+        То же, что niriOutputs, для Umbriel: секции [output.*] и всё
+        машинозависимое (autostart, правила под конкретные мониторы).
+        Кладётся в ~/.config/umbriel/outputs.toml, подключается [include].
+      '';
+    };
+
     wayvncConfig = lib.mkOption {
       type = lib.types.nullOr lib.types.path;
       default = null;

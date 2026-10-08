@@ -354,15 +354,28 @@ in
   };
 
   # ---------------------------------------------------------------
-  # 1. niri (compositor)
+  # 1. Композитор: Umbriel (основной), niri (запасной)
   # ---------------------------------------------------------------
+  # Umbriel — от авторов noctalia, конфиг в home/umbriel/config.toml.
+  # Модуль и пакет — из nixpkgs (бинарник из кеша), свой flake не нужен.
+  programs.umbriel.enable = true;
+  # Его umbriel-portals.conf знает только umbriel и gtk, а Secret niri
+  # брал из gnome-keyring — без этой строки он пропал бы в новой сессии.
+  xdg.portal.config.umbriel = {
+    default = [ "umbriel" "gtk" ];
+    "org.freedesktop.impl.portal.Secret" = [ "gnome-keyring" ];
+  };
+
+  # niri оставлен запасной сессией: Umbriel молодой, а без рабочей
+  # графики чинить систему неудобно. Убрать — когда Umbriel обкатан.
   programs.niri.enable = true;
 
-  # Логин-менеджер: greetd + tuigreet, сразу в niri-сессию
+  # Логин-менеджер: greetd + tuigreet. По умолчанию — Umbriel; F3 в
+  # tuigreet — выбор другой сессии (niri) из --sessions.
   services.greetd = {
     enable = true;
     settings.default_session = {
-      command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd niri-session";
+      command = "${pkgs.tuigreet}/bin/tuigreet --time --sessions ${config.services.displayManager.sessionData.desktops}/share/wayland-sessions --cmd start-umbriel";
       user = "greeter";
     };
   };
@@ -534,6 +547,10 @@ in
     glib            # gdbus — file-search
     nix-search-tv   # индекс для nix-search (/nix в лаунчере)
     qrencode        # qrcode
+    # fel/ocr: tesseract только с нужными языками — полный набор
+    # traineddata весит сотни мегабайт. grim и slurp уже есть.
+    (tesseract.override { enableLanguages = [ "eng" "rus" ]; })
+    jq              # davemhammer/tailscale и claude-cockpit разбирают JSON
 
     # ---- Видимость пакетов (чеклист [[04]], «Просмотр установленного») ----
     # В NixOS источник правды — сам конфиг. nix-tree отвечает на то, чего
@@ -687,6 +704,9 @@ in
   # ломается маршрутизация через tailscale0.
   # После ребилда авторизация делается один раз вручную: sudo tailscale up
   services.tailscale.enable = true;
+  # artur — оператор демона: `tailscale up/down/set` без sudo. Нужно
+  # плагину davemhammer/tailscale в баре noctalia (подключение, exit node).
+  services.tailscale.extraSetFlags = [ "--operator=artur" ];
   networking.firewall.trustedInterfaces = [ "tailscale0" ];
 
   # Remmina (см. systemPackages) при первом запуске кладёт себе в автозапуск
@@ -780,6 +800,8 @@ in
       paratype-pt-serif
 
       nerd-fonts.jetbrains-mono   # ttf-jetbrains-mono-nerd
+      # Шрифт шелла noctalia (как у Caelestia), кириллица есть.
+      rubik
       noto-fonts                  # noto-fonts
       noto-fonts-cjk-sans         # noto-fonts-cjk
       # DejaVu, Liberation и Noto Color Emoji отдельно не нужны: их уже

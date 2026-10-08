@@ -1,0 +1,27 @@
+# Выходы десктопа для Umbriel — перенос ./outputs.kdl (там же подробности:
+# какой монитор где, история с переткнутыми кабелями).
+# Ложится в ~/.config/umbriel/outputs.toml, подключается include'ом.
+
+[output.HDMI-A-1]   # Acer S221HQL
+mode = "1920x1080"
+position = [0, 0]
+
+[output.DP-2]       # Dell P2214H
+mode = "1920x1080"
+position = [1920, 0]
+
+[output.HDMI-A-2]   # Samsung
+mode = "1920x1080"
+position = [3840, 0]
+
+[general]
+# Samsung — зеркало Acer через wl-mirror; wayvnc на тот же HDMI-A-1
+# (см. ./outputs.kdl). Список autostart задаётся только здесь: массив из
+# include'а заменил бы, а не дополнил, такой же в основном конфиге.
+autostart = ["wl-mirror HDMI-A-1", "wayvnc -o HDMI-A-1"]
+
+[[window_rule]]
+match.app_id = "^at[.]yrlf[.]wl_mirror$"
+default_output = "HDMI-A-2"
+default_fullscreen = true
+default_focused = false
