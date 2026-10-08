@@ -370,8 +370,19 @@ in
   # org.freedesktop.FileManager1 («Показать в папке» из браузера/Telegram)
   # принадлежит одному Thunar.
   programs.thunar.enable = true;
-  services.gvfs.enable = true;    # корзина, сеть (smb/sftp), телефоны по MTP
+  programs.thunar.plugins = with pkgs; [
+    thunar-volman            # флешки и телефоны: автомонтирование + открыть окно
+    thunar-media-tags-plugin # массовое переименование по тегам mp3/flac
+    thunar-vcs-plugin        # git-статус и команды в ПКМ
+  ];
+  # Thunar демоном с начала сессии: окна открываются мгновенно, а volman
+  # ловит вставку флешки, даже когда ни одного окна нет. Юнит идёт в
+  # самом пакете Thunar, здесь только привязка к сессии.
+  systemd.user.services.thunar.wantedBy = [ "graphical-session.target" ];
+  services.gvfs.enable = true;    # корзина, сеть (smb/sftp), телефоны по MTP, admin:// (root)
   services.tumbler.enable = true; # миниатюры картинок и видео
+  # webp в превью Thunar/tumbler и во всех GTK-приложениях
+  programs.gdk-pixbuf.modulePackages = [ pkgs.webp-pixbuf-loader ];
   # Каталоги по умолчанию — Thunar (было kitty-open). Системный
   # /etc/xdg/mimeapps.list: личный ~/.config/mimeapps.list главнее, но
   # inode/directory в нём не задан.
@@ -489,6 +500,16 @@ in
     # xdg-open. satty в эту роль не входит: он аннотирует свежий снимок из
     # пайплайна noctalia/grim, а не готовый файл с диска.
     gthumb
+    # ---- Обвязка Thunar (см. programs.thunar выше, действия — home/thunar/uca.xml) ----
+    # Архивы: упаковка/распаковка — действиями через ouch (home/thunar/uca.xml).
+    # thunar-archive-plugin не взят: его движок file-roller тянет за собой
+    # nautilus с localsearch (+40 МБ), а xarchiver плагин не видит.
+    xarchiver            # заглянуть внутрь архива (двойной клик), GTK3 — красится темой
+    ffmpegthumbnailer    # превью видео в tumbler
+    catfish              # поиск по файлам, Thunar зовёт его из меню
+    impression           # запись ISO/img на флешку (ПКМ → «Записать на флешку»)
+    imagemagick          # ПКМ на картинках: сжать / в webp / ресайз
+    ffmpeg               # ПКМ на видео: сжать в mp4 / звук в mp3
     # aseprite — пиксель-арт и спрайтовая анимация (unfree: кэша нет,
     # собирается локально вместе со своим skia)
     aseprite

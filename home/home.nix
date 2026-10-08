@@ -135,6 +135,50 @@ in
   };
 
   # =============================================================
+  # Thunar (сам пакет, плагины и утилиты — modules/common.nix)
+  # =============================================================
+  # Действия ПКМ: бэкап флешки, образ, ISO, медиа, root, хэши…
+  xdg.configFile."Thunar/uca.xml".source = ./thunar/uca.xml;
+  # Настройки пишутся через xfconf-query при активации: правки из
+  # «Параметров» живут до следующего ребилда, потом откатываются к этим.
+  xfconf.settings = {
+    thunar = {
+      misc-folders-first = true;
+      misc-thumbnail-mode = "THUNAR_THUMBNAIL_MODE_ALWAYS"; # превью и на флешках/сети
+      misc-middle-click-in-tab = true;
+      misc-open-new-window-as-tab = true;
+      misc-full-path-in-tab-title = true;
+      misc-date-style = "THUNAR_DATE_STYLE_YYYYMMDD";
+      misc-file-size-binary = true;
+      misc-show-delete-action = true;              # «Удалить» мимо корзины в ПКМ
+      misc-directory-specific-settings = true;     # вид/сортировка запоминаются для каждой папки
+    };
+    thunar-volman = {
+      "automount-drives/enabled" = true;
+      "automount-media/enabled" = true;
+      "autobrowse/enabled" = true;                 # вставил флешку — открылось окно
+    };
+  };
+
+  # GTK3-тема adw-gtk3 читает @define-color из ~/.config/gtk-3.0/noctalia.css
+  # (его пишет noctalia, gtk.css с @import тоже её) — так Thunar, file-roller
+  # и прочий GTK3 перекрашиваются вместе со схемой. Задаётся только gtk3:
+  # gtk.theme протёк бы в gtk4.theme, а тот перезаписывает gtk-4.0/gtk.css
+  # своим @import и ломает цвета noctalia для libadwaita.
+  gtk = {
+    enable = true;
+    gtk3.theme = { package = pkgs.adw-gtk3; name = "adw-gtk3-dark"; };
+    # Без breeze-icons: пакет пропагирует их «на запасные иконки», а с ними
+    # qtbase-dev, vulkan-headers и gtk3-dev — ~125 МБ ради пары редких
+    # иконок, которых нет в самом Papirus (их подхватит hicolor/Adwaita).
+    iconTheme = {
+      package = pkgs.papirus-icon-theme.overrideAttrs { propagatedBuildInputs = [ pkgs.hicolor-icon-theme ]; };
+      name = "Papirus-Dark";
+    };
+    colorScheme = "dark";
+  };
+
+  # =============================================================
   # Zen — настройки профиля.
   #
   # Модуль homeModules из flake зен-браузера сознательно НЕ подключён:

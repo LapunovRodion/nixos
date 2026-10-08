@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Действия ПКМ в Thunar. Файл кладёт home-manager (read-only симлинк),
+  поэтому окно «Настроить действия» сохранить не сможет — новые дописывать сюда.
+
+  Подстановки: %f — путь первого выделенного, %F — пути всех, %n — имя.
+  Литеральный % пишется как %% (иначе Thunar съест его как код).
+  Shell-синтаксис только через `sh -c '...' _ %F`: пути приходят
+  аргументами $1/$@, так кавычки не ломаются ни на каких именах.
+-->
+<actions>
+
+<action>
+	<icon>utilities-terminal</icon>
+	<name>Терминал здесь</name>
+	<unique-id>term</unique-id>
+	<command>kitty --directory %f</command>
+	<patterns>*</patterns>
+	<directories/>
+</action>
+
+<action>
+	<icon>system-file-manager</icon>
+	<name>Открыть в yazi</name>
+	<unique-id>yazi</unique-id>
+	<command>kitty yazi %f</command>
+	<patterns>*</patterns>
+	<directories/>
+	<other-files/>
+	<text-files/>
+	<image-files/>
+	<audio-files/>
+	<video-files/>
+</action>
+
+<action>
+	<icon>accessories-text-editor</icon>
+	<name>Открыть в nvim</name>
+	<unique-id>nvim</unique-id>
+	<command>kitty nvim %F</command>
+	<patterns>*</patterns>
+	<text-files/>
+	<other-files/>
+</action>
+
+<action>
+	<icon>dialog-password</icon>
+	<name>Открыть как root</name>
+	<description>gvfs admin:// — права спросит polkit</description>
+	<unique-id>root</unique-id>
+	<command>thunar admin://%f</command>
+	<patterns>*</patterns>
+	<directories/>
+</action>
+
+<action>
+	<icon>edit-copy</icon>
+	<name>Копировать путь</name>
+	<unique-id>copy-path</unique-id>
+	<command>wl-copy -- %F</command>
+	<patterns>*</patterns>
+	<directories/>
+	<other-files/>
+	<text-files/>
+	<image-files/>
+	<audio-files/>
+	<video-files/>
+</action>
+
+<action>
+	<icon>security-high</icon>
+	<name>SHA256 в буфер</name>
+	<unique-id>sha256</unique-id>
+	<command>sh -c 'h=$(sha256sum -- "$1" | cut -d" " -f1); printf "$h" | wl-copy; notify-send -i security-high "SHA256 скопирован" "$h"' _ %f</command>
+	<patterns>*</patterns>
+	<other-files/>
+	<text-files/>
+	<image-files/>
+	<audio-files/>
+	<video-files/>
+</action>
+
+<action>
+	<icon>package-x-generic</icon>
+	<name>Распаковать сюда</name>
+	<unique-id>unpack</unique-id>
+	<command>sh -c 'cd "$(dirname "$1")" &amp;&amp; ouch decompress -y -q -- "$@" || notify-send -u critical "Не распаковалось" "$1"' _ %F</command>
+	<patterns>*.zip;*.7z;*.rar;*.tar;*.tar.*;*.tgz;*.tbz2;*.txz;*.gz;*.bz2;*.xz;*.zst;*.lz4;*.br</patterns>
+	<other-files/>
+</action>
+
+<action>
+	<icon>package-x-generic</icon>
+	<name>Сжать в .zip</name>
+	<unique-id>pack-zip</unique-id>
+	<command>sh -c 'ouch compress -y -q -- "$@" "$1.zip" || notify-send -u critical "Не сжалось" "$1"' _ %F</command>
+	<patterns>*</patterns>
+	<directories/>
+	<other-files/>
+	<text-files/>
+	<image-files/>
+	<audio-files/>
+	<video-files/>
+</action>
+
+<action>
+	<icon>drive-removable-media</icon>
+	<name>Бэкап в ~/Backups (tar.zst)</name>
+	<description>Папка или смонтированная флешка целиком, имя-дата.tar.zst</description>
+	<unique-id>backup-dir</unique-id>
+	<command>sh -c 'mkdir -p ~/Backups; n=$(basename "$1"); out="$HOME/Backups/$n-$(date -I).tar.zst"; notify-send -i package-x-generic "Архивирую $n" "$out"; if ouch compress -y -q -- "$1" "$out"; then notify-send -i package-x-generic "Бэкап готов" "$out"; else notify-send -u critical "Бэкап не удался" "$1"; fi' _ %f</command>
+	<patterns>*</patterns>
+	<directories/>
+</action>
+
+<action>
+	<icon>media-flash</icon>
+	<name>Снять образ флешки (.img.zst)</name>
+	<description>Посекторная копия раздела, смонтированного в этой папке. Только чтение.</description>
+	<unique-id>flash-image</unique-id>
+	<command>kitty --hold sh -c 'dev=$(findmnt -no SOURCE --mountpoint "$1") || { echo "$1 — не точка монтирования"; exit 1; }; mkdir -p ~/Backups; out="$HOME/Backups/$(basename "$1")-$(date -I).img.zst"; echo "$dev → $out"; pkexec cat "$dev" | zstd -T0 --progress -o "$out" &amp;&amp; echo Готово' _ %f</command>
+	<patterns>*</patterns>
+	<directories/>
+</action>
+
+<action>
+	<icon>media-flash</icon>
+	<name>Записать на флешку</name>
+	<unique-id>write-iso</unique-id>
+	<command>impression %f</command>
+	<patterns>*.iso;*.img;*.img.xz;*.raw</patterns>
+	<other-files/>
+</action>
+
+<action>
+	<icon>preferences-desktop-wallpaper</icon>
+	<name>Поставить обоями</name>
+	<unique-id>wallpaper</unique-id>
+	<command>noctalia msg wallpaper-set %f</command>
+	<patterns>*</patterns>
+	<image-files/>
+</action>
+
+<action>
+	<icon>image-x-generic</icon>
+	<name>В webp (рядом)</name>
+	<submenu>Картинки</submenu>
+	<unique-id>img-webp</unique-id>
+	<command>magick mogrify -format webp -quality 85 %F</command>
+	<patterns>*</patterns>
+	<image-files/>
+</action>
+
+<action>
+	<icon>image-x-generic</icon>
+	<name>Уменьшить до 1920 (в папку 1920/)</name>
+	<submenu>Картинки</submenu>
+	<unique-id>img-1920</unique-id>
+	<command>sh -c 'd="$(dirname "$1")/1920"; mkdir -p "$d"; magick mogrify -path "$d" -resize "1920x1920&gt;" "$@"' _ %F</command>
+	<patterns>*</patterns>
+	<image-files/>
+</action>
+
+<action>
+	<icon>video-x-generic</icon>
+	<name>Сжать в mp4 (h264)</name>
+	<submenu>Видео</submenu>
+	<unique-id>vid-mp4</unique-id>
+	<command>kitty sh -c 'for f; do ffmpeg -hide_banner -i "$f" -c:v libx264 -crf 23 -preset medium -c:a aac "${f%%.*}-small.mp4"; done' _ %F</command>
+	<patterns>*</patterns>
+	<video-files/>
+</action>
+
+<action>
+	<icon>audio-x-generic</icon>
+	<name>Звук в mp3</name>
+	<submenu>Видео</submenu>
+	<unique-id>vid-mp3</unique-id>
+	<command>kitty sh -c 'for f; do ffmpeg -hide_banner -i "$f" -vn -q:a 2 "${f%%.*}.mp3"; done' _ %F</command>
+	<patterns>*</patterns>
+	<video-files/>
+</action>
+
+</actions>
