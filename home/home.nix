@@ -111,6 +111,24 @@ in
   xdg.configFile."umbriel/config.toml".source = ./umbriel/config.toml;
   xdg.configFile."umbriel/outputs.toml".source = osConfig.local.umbrielOutputs;
 
+  # Отдельный X-сервер для Steam (DISPLAY=:7 задан в programs.steam.package,
+  # modules/common.nix). Встроенный XWM Umbriel создаёт главное окно Steam,
+  # но не показывает его (проверено 2026-10-10: X11-kitty показал, Steam —
+  # нет; под xwayland-satellite окно появилось). Остальные X-приложения —
+  # по-прежнему на встроенном Xwayland (:0).
+  systemd.user.services.xwayland-satellite-steam = {
+    Unit = {
+      Description = "xwayland-satellite :7 for Steam";
+      PartOf = [ "graphical-session.target" ];
+      After = [ "graphical-session.target" ];
+    };
+    Service = {
+      ExecStart = "${pkgs.xwayland-satellite}/bin/xwayland-satellite :7";
+      Restart = "on-failure";
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
+  };
+
   # =============================================================
   # Раскладка, в которой хоткеи не зависят от языка.
   #

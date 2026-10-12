@@ -379,6 +379,10 @@ in
   # ловит вставку флешки, даже когда ни одного окна нет. Юнит идёт в
   # самом пакете Thunar, здесь только привязка к сессии.
   systemd.user.services.thunar.wantedBy = [ "graphical-session.target" ];
+  # After, не Before (по умолчанию): GTK при старте зовёт портал за Settings,
+  # а xdg-desktop-portal стартует только после graphical-session.target —
+  # target ждал Thunar, Thunar ждал портал, вход висел 25 с до таймаута D-Bus.
+  systemd.user.services.thunar.after = [ "graphical-session.target" ];
   services.gvfs.enable = true;    # корзина, сеть (smb/sftp), телефоны по MTP, admin:// (root)
   services.tumbler.enable = true; # миниатюры картинок и видео
   # webp в превью Thunar/tumbler и во всех GTK-приложениях
@@ -718,6 +722,14 @@ in
     Hidden=true
   '';
 
+  # basalt (см. systemPackages): встроенный редактор по умолчанию выключен —
+  # без experimental_editor клавиша `i` ничего не делает. vim_mode — vim-клавиши
+  # при редактировании.
+  home-manager.users.artur.xdg.configFile."basalt/config.toml".text = ''
+    experimental_editor = true
+    vim_mode = true
+  '';
+
   # ---------------------------------------------------------------
   # Steam — модулем, а не пакетом
   # ---------------------------------------------------------------
@@ -729,6 +741,12 @@ in
   # игры в Steam → Launch Options прописать:  nvidia-offload %command%
   # На десктопе видеокарта одна — ничего дописывать не нужно.
   programs.steam.enable = true;
+  # Steam (и игры из него) — на X-сервере xwayland-satellite :7, а не на
+  # встроенном Xwayland Umbriel: там главное окно Steam не появляется.
+  # Сервис — systemd.user.services.xwayland-satellite-steam в home/home.nix.
+  # Игра капризничает под satellite → Launch Options: DISPLAY=:0 %command%
+  # Побочно: steam-run тоже получает DISPLAY=:7.
+  programs.steam.package = pkgs.steam.override { extraEnv.DISPLAY = ":7"; };
 
   # gamemode — на время игры поднимает приоритет процесса и переключает
   # CPU governor на performance. В Steam: Launch Options → gamemoderun %command%

@@ -34,9 +34,9 @@ def value(v):
     return json.dumps(v, ensure_ascii=False)  # строки и массивы строк
 
 
+# config_version не переносим: файл от более новой noctalia (5.2.1 пишет
+# 15) иначе навсегда ломает старт старой («newer than supported»).
 out = []
-if "config_version" in data:
-    out.append(f"config_version = {value(data['config_version'])}")
 
 
 def table(name, t):
