@@ -59,6 +59,18 @@
     };
   };
 
+  # dGPU спит (Runtime D3, fine-grained — драйвер включает сам), пока её
+  # не позовут: `nvidia-offload <программа>`, в Steam — параметр запуска
+  # `nvidia-offload %command%`. Замер 2026-10-14: её будил Zen — аппаратное
+  # декодирование видео шло через nvidia-vaapi-driver. VA-API прибит к
+  # iGPU: radeonsi и render-узел AMD (by-path — номера renderD* не
+  # гарантированы). Проверка, спит ли: cat /sys/bus/pci/devices/0000:01:00.0/power/runtime_status
+  # (nvidia-smi для этого не годится — сам её будит).
+  environment.sessionVariables = {
+    LIBVA_DRIVER_NAME = "radeonsi";
+    MOZ_DRM_DEVICE = "/dev/dri/by-path/pci-0000:65:00.0-render";
+  };
+
   # ---- Чем эта машина отличается (см. modules/options.nix) ----
   local = {
     flakeAttr = "laptop";

@@ -3,3 +3,13 @@
 # панели 2880x1800 автоматически (см. local.screen в ./default.nix).
 [output.eDP-1]
 scale = 1.75
+# Панель (Samsung ATNA40CU05, OLED 120 Гц) по drm_info: vrr_capable=1,
+# HDR PQ/BT.2020, max bpc до 16. Проверка: `umbriel color`, `umbriel tearing`.
+# vrr — только в полноэкранном: на OLED плавающая частота на рабочем
+# столе даёт мерцание яркости. hdr = auto — стол остаётся SDR, HDR
+# включается, когда на экране HDR-содержимое (mpv, игры).
+vrr = "fullscreen"
+hdr = "auto"
+bit_depth = 10
+# Разрыв кадра — только окнам, которые сами просят (игры), не всем.
+tearing = true
