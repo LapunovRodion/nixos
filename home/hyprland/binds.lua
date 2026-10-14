@@ -20,8 +20,9 @@ bind(mod .. " + F", hl.dsp.window.fullscreen({ mode = "maximized" })) -- бар 
 bind(mod .. " + SHIFT + F", hl.dsp.window.fullscreen({ mode = "fullscreen" }))
 bind(mod .. " + N", hl.dsp.window.float())
 
--- Фокус монитора: стрелки и hjkl, как в Umbriel. Фокус и перенос окна,
--- Mod+C и прочее, что зависит от режима стола, — в modes.lua.
+-- Фокус монитора: стрелки и hjkl, как в Umbriel. Фокус и перенос окна
+-- (Mod+J/K на краю — соседний стол), Mod+C и прочее, что зависит от
+-- режима стола, — в modes.lua.
 local dirs = { left = "H", down = "J", up = "K", right = "L" }
 for dir, vim in pairs(dirs) do
   for _, key in ipairs({ dir, vim }) do
@@ -29,23 +30,57 @@ for dir, vim in pairs(dirs) do
   end
 end
 
--- Столы
-for i = 1, 9 do
-  bind(mod .. " + " .. i, hl.dsp.focus({ workspace = i }))
-  bind(mod .. " + CTRL + " .. i, hl.dsp.window.move({ workspace = i }))
+-- Столы — свои у каждого монитора, как в niri: у левого 1–9, у следующего
+-- 11–19 и т. д. (мониторы по порядку слева направо, зеркала не в счёт).
+-- Mod+цифра — стол текущего монитора.
+local function base(mon)
+  local xs = {}
+  for _, m in ipairs(hl.get_monitors()) do
+    if not m.is_mirror then xs[#xs + 1] = m.x end
+  end
+  table.sort(xs)
+  for i, x in ipairs(xs) do
+    if x == mon.x then return (i - 1) * 10 end
+  end
+  return 0
 end
+
+for i = 1, 9 do
+  bind(mod .. " + " .. i, function()
+    hl.dispatch(hl.dsp.focus({ workspace = base(hl.get_active_monitor()) + i }))
+  end)
+  bind(mod .. " + CTRL + " .. i, function()
+    hl.dispatch(hl.dsp.window.move({ workspace = base(hl.get_active_monitor()) + i }))
+  end)
+end
+
+-- Подключённому монитору Hyprland даёт первый свободный номер (бывал 22) —
+-- переименовываем в первый стол его диапазона.
+local function fixStartWorkspaces()
+  for _, m in ipairs(hl.get_monitors()) do
+    local ws, b = m.active_workspace, base(m)
+    if not m.is_mirror and ws and (ws.id <= b or ws.id > b + 9) and not hl.get_workspace(b + 1) then
+      hl.dispatch(hl.dsp.workspace.change_id({ workspace = ws.id, id = b + 1 }))
+    end
+  end
+end
+hl.on("hyprland.start", fixStartWorkspaces)
+hl.on("monitor.added", fixStartWorkspaces)
+
+-- Соседний открытый стол этого же монитора (m±1); вниз — следующий.
 for _, key in ipairs({ "Page_Down", "U", "mouse_down" }) do
-  bind(mod .. " + " .. key, hl.dsp.focus({ workspace = "e+1" }))
+  bind(mod .. " + " .. key, hl.dsp.focus({ workspace = "m+1" }))
 end
 for _, key in ipairs({ "Page_Up", "I", "mouse_up" }) do
-  bind(mod .. " + " .. key, hl.dsp.focus({ workspace = "e-1" }))
+  bind(mod .. " + " .. key, hl.dsp.focus({ workspace = "m-1" }))
 end
-bind(mod .. " + CTRL + U", hl.dsp.window.move({ workspace = "e+1" }))
-bind(mod .. " + CTRL + I", hl.dsp.window.move({ workspace = "e-1" }))
+bind(mod .. " + CTRL + U", hl.dsp.window.move({ workspace = "m+1" }))
+bind(mod .. " + CTRL + I", hl.dsp.window.move({ workspace = "m-1" }))
 bind(mod .. " + Tab", hl.dsp.focus({ workspace = "previous" }))
 
--- Обзор всех столов (плагин hyprtasking): сетка, окна тащатся мышью.
-bind(mod .. " + O", function() hl.plugin.hyprtasking.toggle("all") end)
+-- Обзор столов и окон (quickshell-overview, home/hyprland.nix): клик —
+-- перейти, перетащить — на другой стол, средняя кнопка — закрыть.
+bind(mod .. " + O", hl.dsp.exec_cmd("qs ipc -c overview call overview toggle"))
 
 -- Окно мышью: Mod+ЛКМ — двигать, Mod+ПКМ — тянуть размер.
 bind(mod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })

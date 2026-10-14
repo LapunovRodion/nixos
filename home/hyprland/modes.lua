@@ -1,10 +1,13 @@
 -- Режим стола — свой у каждого, Mod+W по кругу, Mod+Shift+W — сразу в tile:
---   tile   — dwindle, столы листаются вбок, бар Caelestia слева;
---   scroll — лента колонок как в niri, столы листаются вверх-вниз, бар сверху;
+--   tile   — dwindle, бар Caelestia слева;
+--   scroll — лента колонок как в niri, бар сверху;
 --   float  — как KDE/Windows: все окна плавают, с заголовками (bars.lua),
 --            бар снизу.
+-- Столы листаются вверх-вниз во всех режимах (анимация — home/hyprland.nix).
 -- Подключается из home/hyprland.nix (extraLuaFiles).
 --
+-- Режим живёт, пока на столе есть окна: опустевший стол Hyprland удаляет,
+-- и режим уходит вместе с ним — тот же номер потом снова tile.
 -- Режимы лежат в ~/.local/state/hypr/workspace-modes: Lua перечитывается
 -- при каждом `hyprctl reload` (его делает и theme-sync при смене обоев).
 -- Бар двигается файлом ~/.config/caelestia/monitors/<выход>/shell.json —
@@ -16,7 +19,7 @@ local bind, dsp = hl.bind, hl.dsp
 
 local MODES = {
   tile = { next = "scroll", bar = "left" },
-  scroll = { next = "float", bar = "top", layout = "scrolling", animation = "slidevert" },
+  scroll = { next = "float", bar = "top", layout = "scrolling" },
   float = { next = "tile", bar = "bottom" },
 }
 
@@ -54,16 +57,30 @@ local function activeMode()
   return modeOf(hl.get_active_workspace())
 end
 
--- Раскладка и анимация стола — правилом. Правило применяется на лету,
--- выключенное — откатывает стол к общим general.layout / анимации.
+-- Раскладка стола — правилом. Правило применяется на лету, выключенное —
+-- откатывает стол к общему general.layout.
 local rules = {}
 local function applyRule(id)
   if rules[id] then rules[id]:set_enabled(false) end
   rules[id] = nil
   local m = MODES[modes[id] or "tile"]
   if m.layout then
-    rules[id] = hl.workspace_rule({ workspace = tostring(id), layout = m.layout, animation = m.animation })
+    rules[id] = hl.workspace_rule({ workspace = tostring(id), layout = m.layout })
   end
+end
+
+-- Режимы удалённых столов — прочь. Удалённый стол приходит в событие уже
+-- без id, поэтому сверка со списком живых.
+local function prune()
+  local changed = false
+  for id in pairs(modes) do
+    if not hl.get_workspace(id) then
+      modes[id] = nil
+      applyRule(id)
+      changed = true
+    end
+  end
+  if changed then save() end
 end
 
 -- float-режим: окно плавает и помечено modefloat. Снимается float только
@@ -119,7 +136,9 @@ end
 
 for id in pairs(modes) do applyRule(id) end
 syncBar()
-hl.on("hyprland.start", syncBar)
+-- После перезагрузки все столы пустые — режимы из файла им не нужны.
+hl.on("hyprland.start", function() prune() syncBar() end)
+hl.on("workspace.removed", prune)
 hl.on("monitor.added", syncBar)
 hl.on("workspace.active", syncBar)
 
@@ -142,28 +161,38 @@ local function byMode(t)
   end
 end
 
--- Вверх/вниз в ленте — как window-focus-or-workspace-* в niri: на краю
--- колонки фокус уходит на соседний стол.
+-- Mod+J/K — как window-focus-or-workspace-* в niri (и Umbriel): на краю
+-- фокус уходит на соседний стол этого монитора. Во всех режимах; стрелки
+-- вверх-вниз — только фокус окна.
+-- Край — по геометрии: без окна снизу dwindle не стоит на месте, а
+-- уводит фокус к соседу сбоку, так что «фокус не сдвинулся» не годится.
+local function hasNeighbour(dir)
+  local w = hl.get_active_window()
+  if not w or not w.workspace then return false end
+  local top, bottom = w.at.y, w.at.y + w.size.y
+  for _, o in ipairs(hl.get_windows({ workspace = w.workspace.id })) do
+    local sameColumn = o.at.x < w.at.x + w.size.x and o.at.x + o.size.x > w.at.x
+    if o.address ~= w.address and o.mapped and not o.hidden and sameColumn
+      and (dir == "down" and o.at.y >= bottom or dir == "up" and o.at.y + o.size.y <= top) then
+      return true
+    end
+  end
+  return false
+end
+
 local function focusOrWorkspace(dir, ws)
   return function()
-    local before = hl.get_active_window()
-    hl.dispatch(dsp.focus({ direction = dir }))
-    local after = hl.get_active_window()
-    if (before and before.address) == (after and after.address) then
-      hl.dispatch(dsp.focus({ workspace = ws }))
-    end
+    hl.dispatch(hasNeighbour(dir) and dsp.focus({ direction = dir }) or dsp.focus({ workspace = ws }))
   end
 end
 
 local dirs = { left = "H", down = "J", up = "K", right = "L" }
 local swap = { left = "swapcol l", right = "swapcol r" }
-local edge = { down = "e+1", up = "e-1" }
+local edge = { down = "m+1", up = "m-1" }
 for dir, vim in pairs(dirs) do
+  bind(mod .. " + " .. dir, dsp.focus({ direction = dir }))
+  bind(mod .. " + " .. vim, edge[dir] and focusOrWorkspace(dir, edge[dir]) or dsp.focus({ direction = dir }))
   for _, key in ipairs({ dir, vim }) do
-    bind(mod .. " + " .. key, byMode({
-      scroll = edge[dir] and focusOrWorkspace(dir, edge[dir]),
-      default = dsp.focus({ direction = dir }),
-    }))
     bind(mod .. " + CTRL + " .. key, byMode({
       scroll = swap[dir] and dsp.layout(swap[dir]),
       default = dsp.window.move({ direction = dir }),

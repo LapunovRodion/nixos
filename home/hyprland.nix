@@ -13,14 +13,61 @@ let
     src = inputs.caelestia-shell;
     patches = [ ./caelestia/bar-position.patch ];
   };
+  # Тот же Quickshell, что у шелла, — им же запускается обзор столов ниже.
+  quickshell = inputs.caelestia-shell.inputs.quickshell.packages.${system}.default.override {
+    withX11 = false;
+    withI3 = false;
+  };
   caelestiaShell = pkgs.callPackage "${caelestiaSrc}/nix" (with inputs.caelestia-shell.inputs; {
     rev = inputs.caelestia-shell.rev;
     stdenv = pkgs.clangStdenv;
-    quickshell = quickshell.packages.${system}.default.override { withX11 = false; withI3 = false; };
+    inherit quickshell;
     caelestia-cli = caelestia-cli.packages.${system}.default;
     m3shapes = m3shapes.packages.${system}.default;
     withCli = true;
   });
+
+  # Обзор столов и окон (Mod+O): https://github.com/Shanu-Kumawat/quickshell-overview
+  # Клик — перейти к окну, перетащить — на другой стол или на плитку
+  # special:minimized (спрятать), средняя кнопка — закрыть. Отдельный
+  # конфиг Quickshell, рядом с Caelestia: упадёт — упадёт только он.
+  # Свой config.json кладётся в каталог исходника — обзор читает его
+  # из ~/.config/quickshell/overview.
+  overviewConfig = (pkgs.formats.json { }).generate "config.json" {
+    appearance = {
+      # Палитра — `caelestia scheme get`. Опрос раз в 2 с выключен:
+      # сервис перезапускает theme-sync при смене обоев.
+      colorSource = "caelestia";
+      caelestia.autoRefresh = false;
+      font.family = { main = "Rubik"; title = "Rubik"; expressive = "Rubik"; };
+    };
+    overview = {
+      # Столы столбиком, как в niri; пустые не показываются.
+      rows = 9;
+      columns = 1;
+      hideEmptyRows = true;
+      # Доля размера монитора на миниатюру стола; заводские 0.16 для
+      # одной колонки мелковаты.
+      scale = 0.22;
+      # Сдвиг номеров по Hyprland id монитора: столы у каждого монитора
+      # свои (binds.lua). id 0 — левый монитор, 1… — остальные: на десктопе
+      # 1 — зеркало Samsung, 2 — Dell; на ноуте 1 — внешний.
+      useWorkspaceMap = true;
+      workspaceMap = [ 0 10 10 10 ];
+      showSpecialWorkspaces = true;
+    };
+  };
+  overviewConfigDir = pkgs.runCommand "quickshell-overview" { } ''
+    cp -r ${pkgs.fetchFromGitHub {
+      owner = "Shanu-Kumawat";
+      repo = "quickshell-overview";
+      rev = "47f0d402822b26805ed0ecea4a770c38c537b728";
+      hash = "sha256-s1HyEuMQQHVIZeDTwJetOdT467M/mzZl4ymTlENgDuE=";
+    }} $out
+    chmod u+w $out
+    cp ${overviewConfig} $out/config.json
+  '';
+
   builtinTemplates = "${noctalia}/share/noctalia/assets/templates";
   cfgHome = config.xdg.configHome;
 
@@ -73,7 +120,7 @@ let
   themeSync = pkgs.writeShellApplication {
     name = "caelestia-theme-sync";
     runtimeInputs = [ noctalia osConfig.programs.hyprland.package ] ++ (with pkgs; [
-      bash coreutils findutils gnugrep gnused gawk diffutils procps python3 dconf
+      bash coreutils findutils gnugrep gnused gawk diffutils procps python3 dconf systemd
     ]);
     text = "THEME_TEMPLATES=${themeTemplates}\n" + builtins.readFile ./caelestia/theme-sync.sh;
   };
@@ -187,6 +234,26 @@ in
   # т. п.). В noctalia он был встроен, в Caelestia его нет.
   services.hyprpolkitagent.enable = true;
 
+  # Обзор столов (overviewConfigDir выше), Mod+O — binds.lua.
+  # `qs` в PATH — им Mod+O зовёт обзор (qs ipc …).
+  home.packages = [ quickshell ];
+  xdg.configFile."quickshell/overview".source = overviewConfigDir;
+  systemd.user.services.quickshell-overview = {
+    Unit = {
+      Description = "Обзор столов (quickshell-overview)";
+      PartOf = [ "graphical-session.target" ];
+      After = [ "graphical-session.target" ];
+      X-Restart-Triggers = [ "${overviewConfigDir}" ];
+    };
+    Service = {
+      ExecStart = "${quickshell}/bin/qs -c overview";
+      # Иконки окон — как у Caelestia (см. programs.caelestia.systemd).
+      Environment = [ "QS_ICON_THEME=${config.gtk.iconTheme.name}" ];
+      Restart = "on-failure";
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
+  };
+
   # Смена обоев раз в 30 минут, случайно — как automation в noctalia.
   # Цвета шелла и приложений едут следом (см. theme-sync выше).
   # Сменить сразу: systemctl --user start caelestia-wallpaper
@@ -231,12 +298,15 @@ in
 
       general = {
         # Обычный тайлинг. Лента колонок (scrolling) и «как в KDE» — режимы
-        # отдельных столов, Mod+W (./hyprland/modes.lua).
+        # отдельных столов, Mod+W (./hyprland/modes.lua). Столы у каждого
+        # монитора свои (./hyprland/binds.lua).
         layout = "dwindle";
         gaps_in = 5;
         gaps_out = 10;
         border_size = 2;
       };
+      # Без него togglesplit (Mod+R в tile) отказывает: «can't togglesplit».
+      dwindle.preserve_split = true;
       # Для столов в режиме scroll.
       scrolling = {
         column_width = 0.5;
@@ -251,12 +321,6 @@ in
       };
 
       plugin = {
-        # Обзор столов, Mod+O (binds.lua). Сетка 3×3 — столы 1–9.
-        hyprtasking = {
-          layout = "grid";
-          gap_size = 20;
-          grid = { rows = 3; cols = 3; };
-        };
         # Заголовки окон; цвета от обоев и кнопки — ./hyprland/bars.lua.
         hyprbars = {
           bar_height = 28;
@@ -273,14 +337,33 @@ in
 
     # Плагины грузятся до extraLuaFiles, так что hl.plugin.* там уже есть.
     # Собраны под тот же Hyprland из nixpkgs, что и programs.hyprland.
-    plugins = with pkgs.hyprlandPlugins; [ hyprtasking hyprbars ];
+    plugins = with pkgs.hyprlandPlugins; [ hyprbars ];
 
     # Заголовки — только у плавающих окон (правило динамическое: снял
     # float — заголовок пропал).
-    settings.window_rule = [{
-      name = "hyprbars-tiled";
-      match.float = false;
-      "hyprbars:no_bar" = true;
+    settings.window_rule = [
+      {
+        name = "hyprbars-tiled";
+        match.float = false;
+        "hyprbars:no_bar" = true;
+      }
+      # kitty и Zen помнят, что были развёрнуты, и сами просят maximize при
+      # открытии — новое окно закрывало все остальные на столе. Развернуть
+      # можно по-прежнему: Mod+F, двойной клик по заголовку.
+      {
+        name = "no-app-maximize";
+        match.class = ".*";
+        suppress_event = "maximize";
+      }
+    ];
+
+    # Столы листаются вверх-вниз, как в niri, — во всех режимах (modes.lua).
+    settings.animation = [{
+      leaf = "workspaces";
+      enabled = true;
+      speed = 6;
+      bezier = "default";
+      style = "slidevert";
     }];
 
     # Размытие под полупрозрачными панелями Caelestia. Бар и все выезжающие

@@ -46,3 +46,6 @@ done
 # Рамки окон читают ~/.config/hypr/scheme/current.lua (его пишет caelestia)
 # только при загрузке конфига — см. home/hyprland/colors.lua.
 hyprctl reload config-only >/dev/null || true
+
+# Обзор столов читает палитру только при старте (опрос выключен).
+systemctl --user try-restart quickshell-overview.service || true
