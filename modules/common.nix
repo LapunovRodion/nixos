@@ -747,7 +747,9 @@ in
   # пропускает. Пишем файл через home-manager, а не удаляем руками: он
   # уезжает в /nix/store и подключается read-only симлинком, так что
   # remmina не может создать его заново. Существующий обычный файл HM
-  # отодвинет в .hm-bak (backupFileExtension в flake.nix).
+  # отодвинет в .hm-bak (backupFileExtension в flake.nix) — и этот .hm-bak
+  # УДАЛИТЬ руками: systemd-xdg-autostart-generator берёт из autostart/
+  # любой файл, не только *.desktop, и апплет поднимался из бэкапа.
   home-manager.users.artur.xdg.configFile."autostart/remmina-applet.desktop".text = ''
     [Desktop Entry]
     Type=Application
