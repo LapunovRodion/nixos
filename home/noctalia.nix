@@ -9,11 +9,10 @@ let
 
   # Координаты виджетов — в ЛОГИЧЕСКИХ пикселях, от центра виджета.
   # Те, что прижаты к левому верхнему углу, остаются числами: на любом
-  # экране они окажутся там же. А вот прижатые к центру, к низу и к
-  # правому краю обязаны считаться от размера экрана, иначе на другом
+  # экране они окажутся там же. А вот прижатые к центру и к низу
+  # обязаны считаться от размера экрана, иначе на другом
   # мониторе уедут.
   centerX = scr.width * 1.0 / 2;
-  fromRight = margin: scr.width * 1.0 - margin;
   fromBottom = margin: scr.height * 1.0 - margin;
 
   # Плагины сообщества — как есть из flake-входа, кроме точечных правок
@@ -304,6 +303,8 @@ in
         };
         ocr.type = "fel/ocr:ocr";
         tailscale.type = "davemhammer/tailscale:status";
+        # Только значок сети, без SSID — имя видно в панели по клику.
+        network.show_label = false;
 
         # Раскладка в баре — короткой подписью (сами подписи — в
         # shell.keyboard_layout.custom_labels выше).
@@ -395,9 +396,6 @@ in
           # Выделил область → распознанный текст в буфере (tesseract,
           # языки — plugin_settings ниже, пакет — modules/common.nix).
           "fel/ocr"
-          # Для стола (см. desktop_widgets): обратный отсчёт и стикеры.
-          "noctalia/timer"
-          "remo/noctes"
           # Tailscale: подключение, пиры, exit node, флаги — из бара. Права —
           # оператор в modules/common.nix (services.tailscale.extraSetFlags).
           "davemhammer/tailscale"
@@ -484,9 +482,9 @@ in
       # вручную в редакторе (noctalia msg desktop-widgets-edit) и перенесены
       # сюда из state: сам редактор пишет в ~/.local/state/noctalia/
       # settings.toml, а его чистит noctalia-state-reset при каждом старте.
-      # Слева — часы и погода, справа — календарь, стикер, таймер, снизу —
-      # визуализатор. Правый край и низ — через fromRight/fromBottom, чтобы
-      # на экране ноута (1645×1029) виджеты не уехали за край.
+      # Слева — часы и погода, снизу — визуализатор. Низ — через
+      # fromBottom, чтобы на экране ноута (1645×1029) не уехал за край.
+      # Правая колонка (календарь, стикер noctes, таймер) убрана 2026-10-10.
       #
       # Визуализатор — только там, где нет батареи. 2026-09-24 powertop
       # показал: анимированные виджеты не дают экрану ноута 120 Гц
@@ -497,9 +495,6 @@ in
         widget_order = [
           "desktop-widget-0000000000000004"
           "desktop-weather"
-          "desktop-calendar"
-          "desktop-timer"
-          "desktop-note-1"
         ] ++ lib.optional (!hasBattery) "desktop-widget-0000000000000003";
         grid = { visible = true; cell_size = 16; major_interval = 4; };
         widget = {
@@ -531,52 +526,6 @@ in
               forecast_days = 3;
               shadow = true;
               background = false;
-              background_radius = 0;
-            };
-          };
-          # сетка месяца; событий нет, пока не подключён [calendar]
-          desktop-calendar = {
-            type = "calendar";
-            output = primaryOutput;
-            cx = fromRight 532.0; cy = 316.0;
-            box_width = 384.0; box_height = 416.0;
-            rotation = 0.0;
-            settings = {
-              show_events = false;
-              show_week_numbers = false;
-              background = true;
-              background_opacity = 0.0;
-              background_radius = 0;
-            };
-          };
-          # Стикер remo/noctes. Объявлен ЗДЕСЬ, а не кнопкой «+» плагина:
-          # плагин пишет листы в state, а его чистит noctalia-state-reset —
-          # лист пропадал бы на каждом старте шелла. key — постоянная связь
-          # с заметкой в notes.json плагина.
-          desktop-note-1 = {
-            type = "remo/noctes:note";
-            output = primaryOutput;
-            cx = fromRight 220.0; cy = 220.0;
-            box_width = 240.0; box_height = 224.0;
-            rotation = 0.0;
-            settings = {
-              key = "desk-1";
-              background_opacity = 0.0;
-              background_radius = 0;
-            };
-          };
-          # таймер плагина noctalia/timer — тот же отсчёт, что в его панели
-          desktop-timer = {
-            type = "noctalia/timer:desktop";
-            output = primaryOutput;
-            cx = fromRight 220.0; cy = 428.0;
-            box_width = 240.0; box_height = 192.0;
-            rotation = 0.0;
-            settings = {
-              color = "primary";
-              background = true;
-              background_opacity = 0.0;
-              background_padding = 0;
               background_radius = 0;
             };
           };
