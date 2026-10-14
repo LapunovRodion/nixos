@@ -89,6 +89,38 @@ let
     '';
   };
 
+  # `nh-switch` (сокращение ns) — nh os switch, а если упал (обычно таймаут
+  # cache.nixos.org) — повтор через hysteria. Качает не nh, а nix-daemon,
+  # поэтому прокси ему даётся временным drop-in в /run и снимается после
+  # повтора, чем бы тот ни кончился. Клиентский nix (входы флейка) получает
+  # прокси переменными. Повтор — на ЛЮБОЙ провал: ошибка в конфиге просто
+  # упадёт второй раз, это быстро.
+  nhSwitch = pkgs.writeShellApplication {
+    name = "nh-switch";
+    runtimeInputs = [ config.programs.nh.package ] ++ (with pkgs; [ curl coreutils ]);
+    text = ''
+      nh os switch "$@" && exit 0
+
+      if ! curl -sS -m 10 -o /dev/null -x "http://${proxyAddr}" https://cache.nixos.org/nix-cache-info; then
+        echo "nh-switch: напрямую не вышло, и через hysteria кэш недоступен (см. vpn)" >&2
+        exit 1
+      fi
+      echo "nh-switch: напрямую не вышло — повтор через hysteria (${proxyAddr})" >&2
+
+      dropin=/run/systemd/system/nix-daemon.service.d/hysteria-proxy.conf
+      restart_daemon() { sudo systemctl daemon-reload && sudo systemctl restart nix-daemon; }
+      cleanup() { sudo rm -f "$dropin"; restart_daemon; }
+      trap cleanup EXIT
+
+      sudo mkdir -p "$(dirname "$dropin")"
+      printf '[Service]\nEnvironment="http_proxy=http://%s" "https_proxy=http://%s"\n' \
+        "${proxyAddr}" "${proxyAddr}" | sudo tee "$dropin" >/dev/null
+      restart_daemon
+
+      http_proxy="http://${proxyAddr}" https_proxy="http://${proxyAddr}" nh os switch "$@"
+    '';
+  };
+
   # claude-code, всегда ходящий через hysteria (http-прокси на 3128).
   # Обёртка, а не глобальные HTTPS_PROXY — через VPN идёт только claude,
   # остальная система работает напрямую.
@@ -467,6 +499,7 @@ in
     # сеть
     hysteria
     vpn        # `vpn` — статус и пинг, `vpn restart` — перезапуск; см. let выше
+    nhSwitch   # `nh-switch` (ns) — switch с повтором через hysteria; см. let выше
     # Remmina — RDP/VNC-клиент с сохранёнными профилями: Windows-VM на
     # Proxmox по RDP, desktop:5900 по VNC (wayvnc), всё через Tailscale.
     # Профиль заводится один раз, дальше клик — без набора адреса.
