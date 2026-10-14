@@ -89,45 +89,14 @@ let
     // lib.mapAttrs' (k: v: lib.nameValuePair (kbd.mirrorMap.${k} or k) v) mpvKeys;
 in
 {
-  # В home-manager (с 2026-08) есть свой programs.noctalia — он конфликтует
-  # с модулем из флейка noctalia. Отключаем встроенный, оставляем флейковый.
-  disabledModules = [ "programs/noctalia" ];
-
   imports = [
-    inputs.noctalia.homeModules.default
     inputs.nixvim.homeModules.nixvim
-    ./noctalia.nix        # весь конфиг шелла — бар, док, виджеты, тема, плагины
   ];
 
   home.stateVersion = "26.05";
 
-  # =============================================================
-  # Umbriel — конфиг композитора: общий файл + машинозависимый
-  # (мониторы) через include. Оба — read-only симлинки в /nix/store,
-  # поэтому всё генерируемое (цвета noctalia) тоже подключается include'ом.
-  # Модуль programs.umbriel из home-manager не нужен — он умеет только
-  # положить этот же файл.
-  # =============================================================
-  xdg.configFile."umbriel/config.toml".source = ./umbriel/config.toml;
-  xdg.configFile."umbriel/outputs.toml".source = osConfig.local.umbrielOutputs;
-
-  # Отдельный X-сервер для Steam (DISPLAY=:7 задан в programs.steam.package,
-  # modules/common.nix). Встроенный XWM Umbriel создаёт главное окно Steam,
-  # но не показывает его (проверено 2026-10-10: X11-kitty показал, Steam —
-  # нет; под xwayland-satellite окно появилось). Остальные X-приложения —
-  # по-прежнему на встроенном Xwayland (:0).
-  systemd.user.services.xwayland-satellite-steam = {
-    Unit = {
-      Description = "xwayland-satellite :7 for Steam";
-      PartOf = [ "graphical-session.target" ];
-      After = [ "graphical-session.target" ];
-    };
-    Service = {
-      ExecStart = "${pkgs.xwayland-satellite}/bin/xwayland-satellite :7";
-      Restart = "on-failure";
-    };
-    Install.WantedBy = [ "graphical-session.target" ];
-  };
+  # Рабочий стол (композитор + шелл) — не здесь: home/hyprland.nix или
+  # home/umbriel.nix, их подключает выбранный модуль в modules/common.nix.
 
   # =============================================================
   # Раскладка, в которой хоткеи не зависят от языка.
@@ -350,8 +319,6 @@ in
     size = 24;
     gtk.enable = true;
   };
-
-  # noctalia (шелл) — целиком в ./noctalia.nix, см. imports выше.
 
   # =============================================================
   # Batch 2 — пользовательские CLI-инструменты (декларативно)
@@ -1107,7 +1074,12 @@ in
   };
 
   # --- монитор ресурсов (вместо glances) ---
-  programs.btop.enable = true;
+  programs.btop = {
+    enable = true;
+    # Палитра от обоев: themes/noctalia.theme пишет шаблон btop — noctalia
+    # (Umbriel) или theme-sync (Hyprland). Пока файла нет, btop берёт свою.
+    settings.color_theme = "noctalia";
+  };
 
   # --- satty: разметка скриншота (Mod+Ctrl+S в umbriel) ---
   # Настройки здесь, а не флагами в бинде: так их подхватывает любой вызов

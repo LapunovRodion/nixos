@@ -239,6 +239,16 @@ in
 # живёт в hosts/<имя>/default.nix, а не здесь.
 # =============================================================
 {
+  # ---------------------------------------------------------------
+  # Рабочий стол (композитор + шелл) — ОДНА строка, второй модуль не
+  # подключать: оба шелла — бар и демон уведомлений, в одной сессии
+  # они бы дрались.
+  #   ./hyprland.nix — Hyprland + Caelestia
+  #   ./umbriel.nix  — Umbriel + noctalia (как было до 2026-10-14)
+  # Каждый модуль сам подтягивает свою home-часть (home/<имя>.nix).
+  # ---------------------------------------------------------------
+  imports = [ ./hyprland.nix ];
+
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
   # Без лимита /boot (1 ГБ) копит ядра и initrd всех поколений. 10 записей
@@ -327,16 +337,18 @@ in
   # Если что-то из этого снова понадобится — вернуть можно из git-истории.
 
   # ---------------------------------------------------------------
-  # Nix: flakes + бинарный кэш noctalia
+  # Nix: flakes и кэш noctalia
   # ---------------------------------------------------------------
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];
-    # Одинаковые файлы в сторе схлопываются в хардлинки прямо при сборке.
-    auto-optimise-store = true;
+    # Бинарный кэш noctalia — без него она собирается локально. Нужен обоим
+    # столам: на Hyprland от noctalia — утилита перекраски (theme-sync).
     extra-substituters = [ "https://noctalia.cachix.org" ];
     extra-trusted-public-keys = [
       "noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
     ];
+    # Одинаковые файлы в сторе схлопываются в хардлинки прямо при сборке.
+    auto-optimise-store = true;
   };
 
   # nh — обёртка над nix: ребилд с прогрессом и диффом пакетов, чистка стора.
@@ -359,30 +371,11 @@ in
   };
 
   # ---------------------------------------------------------------
-  # 1. Композитор: Umbriel
+  # 1. Композитор и шелл — modules/hyprland.nix или modules/umbriel.nix
+  # (см. imports в начале). Здесь — то, что нужно любому из них.
   # ---------------------------------------------------------------
-  # Umbriel — от авторов noctalia, конфиг в home/umbriel/config.toml.
-  # Модуль и пакет — из nixpkgs (бинарник из кеша), свой flake не нужен.
-  # niri (был запасной сессией) убран 2026-10-08, конфиг — в git-истории.
-  programs.umbriel.enable = true;
-  # Его umbriel-portals.conf знает только umbriel и gtk, а Secret берётся
-  # из gnome-keyring (пароли Zen, Telegram, git-credential и т.п.).
-  xdg.portal.config.umbriel = {
-    default = [ "umbriel" "gtk" ];
-    "org.freedesktop.impl.portal.Secret" = [ "gnome-keyring" ];
-  };
-  # Раньше его неявно включал модуль niri (mkDefault) — теперь явно.
+  # Secret-портал и пароли (Zen, Telegram, git-credential и т.п.).
   services.gnome.gnome-keyring.enable = true;
-
-  # Логин-менеджер: greetd + tuigreet. По умолчанию — Umbriel; F3 в
-  # tuigreet — выбор другой сессии из --sessions.
-  services.greetd = {
-    enable = true;
-    settings.default_session = {
-      command = "${pkgs.tuigreet}/bin/tuigreet --time --sessions ${config.services.displayManager.sessionData.desktops}/share/wayland-sessions --cmd start-umbriel";
-      user = "greeter";
-    };
-  };
 
   # Портал для скриншотов/скриншеринга
   xdg.portal = {
@@ -398,7 +391,7 @@ in
   programs.fuse.enable = true;
 
   # Thunar — графический файловый менеджер, основной (yazi остаётся для
-  # терминала). FileChooser портала — gtk (default в xdg.portal.config.umbriel),
+  # терминала). FileChooser портала — gtk (xdg.portal.config.<стол>),
   # org.freedesktop.FileManager1 («Показать в папке» из браузера/Telegram)
   # принадлежит одному Thunar.
   programs.thunar.enable = true;
@@ -423,14 +416,6 @@ in
   # /etc/xdg/mimeapps.list: личный ~/.config/mimeapps.list главнее, но
   # inode/directory в нём не задан.
   xdg.mime.defaultApplications."inode/directory" = "thunar.desktop";
-
-  # ---------------------------------------------------------------
-  # 2. noctalia v5 (шелл)
-  # ---------------------------------------------------------------
-  programs.noctalia = {
-    enable = true;
-    recommendedServices.enable = true;  # NetworkManager, Bluetooth, UPower, power-profiles-daemon
-  };
 
   # ---------------------------------------------------------------
   # 3. Hysteria (VPN-клиент, http-прокси на 3128)
@@ -776,12 +761,6 @@ in
   # игры в Steam → Launch Options прописать:  nvidia-offload %command%
   # На десктопе видеокарта одна — ничего дописывать не нужно.
   programs.steam.enable = true;
-  # Steam (и игры из него) — на X-сервере xwayland-satellite :7, а не на
-  # встроенном Xwayland Umbriel: там главное окно Steam не появляется.
-  # Сервис — systemd.user.services.xwayland-satellite-steam в home/home.nix.
-  # Игра капризничает под satellite → Launch Options: DISPLAY=:0 %command%
-  # Побочно: steam-run тоже получает DISPLAY=:7.
-  programs.steam.package = pkgs.steam.override { extraEnv.DISPLAY = ":7"; };
 
   # gamemode — на время игры поднимает приоритет процесса и переключает
   # CPU governor на performance. В Steam: Launch Options → gamemoderun %command%

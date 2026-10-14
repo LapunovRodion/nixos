@@ -86,6 +86,7 @@
     hasBattery = true;
     zenProfileDir = "vkvdhp86.Default Profile";
     umbrielOutputs = ./umbriel.toml;
+    hyprlandOutputs = ./hyprland.lua;
 
     # Окружение разработки (см. modules/dev.nix). Выставить в false и
     # сделать switch — podman уйдёт из системы.

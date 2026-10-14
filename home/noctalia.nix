@@ -42,20 +42,8 @@ let
     builtins.readFile ./noctalia-state-reset.py
   );
 
-  # post_hook шаблона kitty: рисует картинку-градиент из цветов свежей
-  # палитры. Разбор — в самом скрипте. writeShellApplication добавляет
-  # шебанг и `set -euo pipefail` и прогоняет shellcheck при сборке,
-  # поэтому в файле их нет.
-  #
-  # runtimeInputs обязателен целиком: хук запускается из user-сервиса
-  # noctalia, где PATH минимальный, — coreutils и findutils оттуда не
-  # взять. imagemagick при этом в systemPackages не нужен, он приезжает
-  # замыканием этой обёртки.
-  kittyGradient = pkgs.writeShellApplication {
-    name = "kitty-gradient";
-    runtimeInputs = with pkgs; [ imagemagick coreutils findutils procps gawk ];
-    text = builtins.readFile ./kitty/gradient.sh;
-  };
+  # post_hook шаблона kitty — см. kitty/gradient.nix.
+  kittyGradient = import ./kitty/gradient.nix pkgs;
 in
 
 # =============================================================
@@ -108,10 +96,10 @@ in
 
         # Подписи раскладок двумя буквами (виджет keyboard_layout в баре).
         # Имена точные, из `umbriel keyboard-layouts`: ru-latin xkb
-        # называет «Russian (latin fallback)».
+        # называет «Russian» (так Caelestia находит её в base.lst как ru).
         keyboard_layout.custom_labels = {
           "English (US)" = "EN";
-          "Russian (latin fallback)" = "RU";
+          "Russian" = "RU";
         };
 
         # Панели «мягкие»: solid → soft → glass. Чуть прозрачные, размытие

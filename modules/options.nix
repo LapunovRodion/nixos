@@ -98,13 +98,22 @@
       '';
     };
 
+    hyprlandOutputs = lib.mkOption {
+      type = lib.types.path;
+      description = ''
+        Машинозависимая часть конфига Hyprland (Lua): hl.monitor(…) и
+        автозапуск под мониторы. Подключается из home/hyprland.nix.
+      '';
+    };
+
     wayvncConfig = lib.mkOption {
       type = lib.types.nullOr lib.types.path;
       default = null;
       description = ''
         Конфиг wayvnc (~/.config/wayvnc/config): address/port/enable_auth.
         null там, где VNC не нужен. Какой ВЫХОД захватывать — не сюда,
-        это только CLI-флаг -o в autostart (см. hosts/<машина>/umbriel.toml),
+        это только CLI-флаг -o в autostart (см. hosts/<машина>/umbriel.toml
+        или hyprland.lua),
         в конфиг-файле wayvnc такого ключа нет.
       '';
     };
