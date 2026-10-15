@@ -82,6 +82,17 @@ bind(mod .. " + Tab", hl.dsp.focus({ workspace = "previous" }))
 -- перейти, перетащить — на другой стол, средняя кнопка — закрыть.
 bind(mod .. " + O", hl.dsp.exec_cmd("qs ipc -c overview call overview toggle"))
 
+-- Жесты тачпада (ноут; на десктопе тачпада нет — просто не срабатывают).
+-- 3 пальца вверх-вниз — столы (листаются вертикально из-за slidefadevert),
+-- вбок — лента scroll-стола (на других столах ничего не делает),
+-- 4 пальца вверх — обзор, сведение/разведение — развернуть окно.
+hl.gesture({ fingers = 3, direction = "vertical", action = "workspace" })
+hl.gesture({ fingers = 3, direction = "horizontal", action = "scroll_move" })
+hl.gesture({ fingers = 4, direction = "up", action = function()
+  os.execute("qs ipc -c overview call overview toggle &")
+end })
+hl.gesture({ fingers = 3, direction = "pinchout", action = "fullscreen", mode = "maximized" })
+
 -- Окно мышью: Mod+ЛКМ — двигать, Mod+ПКМ — тянуть размер.
 bind(mod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })
 bind(mod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })

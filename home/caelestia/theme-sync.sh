@@ -11,9 +11,8 @@
 # Палитру приложениям считает утилита noctalia (`noctalia theme`, разово,
 # шелл не запускается): шаблоны написаны под её движок — фильтры
 # set_alpha/lighten/set_hue, варианты .light/.dark, — у Caelestia такого нет.
-# Режим и вариант схемы берутся у Caelestia, так что светлое/тёмное и
-# характер палитры совпадают с шеллом. Генераторы Material You разные,
-# поэтому оттенки — «почти», не бит в бит.
+# Вариант схемы берётся у Caelestia, режим — всегда тёмный, как у шелла.
+# Генераторы Material You разные, поэтому оттенки — «почти», не бит в бит.
 #
 # THEME_TEMPLATES подставляет home/hyprland.nix: user.toml (kitty, Claude,
 # btop, gtk) и каталоги шаблонов сообщества из home/theme-templates.
@@ -39,7 +38,7 @@ esac
 # шаблона указывает на каталог его toml. Упавший шаблон не мешает остальным.
 for cfg in "$THEME_TEMPLATES"/user.toml "$THEME_TEMPLATES"/*/template.toml; do
   noctalia theme "$WALLPAPER_PATH" --scheme "$scheme" \
-    --default-mode "${SCHEME_MODE:-dark}" -c "$cfg" >/dev/null 2>&1 ||
+    --default-mode dark -c "$cfg" >/dev/null 2>&1 ||
     echo "theme-sync: $cfg не отрисовался" >&2
 done
 

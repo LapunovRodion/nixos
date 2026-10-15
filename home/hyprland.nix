@@ -18,6 +18,17 @@ let
       cp ${./caelestia/Taskbar.qml} modules/bar/components/Taskbar.qml
       cp ${./caelestia/BarShatter.qml} modules/drawers/BarShatter.qml
       cp ${barShaders}/* modules/drawers/
+      # Фон бара и рамки — не серый surface, а surface с подмесом primary
+      # (доля 0.12 — ручка «насколько цветной»). Прозрачность прежняя.
+      substituteInPlace modules/drawers/ContentWindow.qml modules/drawers/BarShatter.qml \
+        --replace-fail "Colours.tPalette.m3surface" \
+          "Qt.alpha(Qt.tint(Colours.palette.m3surface, Qt.alpha(Colours.palette.m3primary, 0.12)), Colours.tPalette.m3surface.a)"
+      # Яркость матрицы — только amdgpu_bl*: на ноуте есть ещё nvidia_0
+      # (её заводит nvidia-modeset, отключить нечем), brightnessctl брал её
+      # первой, и ползунок ездил впустую. На десктопе мониторы по DDC.
+      substituteInPlace services/Brightness.qml \
+        --replace-fail '"brightnessctl", "s"' '"brightnessctl", "-d", "amdgpu_bl*", "s"' \
+        --replace-fail '$(brightnessctl g) $(brightnessctl m)' "\$(brightnessctl -d 'amdgpu_bl*' g) \$(brightnessctl -d 'amdgpu_bl*' m)"
     '';
   };
   # Шейдеры QML-шелла — в .qsb заранее (так же qt_add_shaders собирает
@@ -175,8 +186,9 @@ in
     systemd.environment = [ "QS_ICON_THEME=${config.gtk.iconTheme.name}" ];
 
     # ~/.config/caelestia/cli.json. Схема «dynamic» (от обоев) включается
-    # разово: caelestia scheme set -n dynamic. Светлая/тёмная и вариант
-    # схемы Caelestia выбирает по картинке сама (services.smartScheme).
+    # разово: caelestia scheme set -n dynamic. Тема всегда тёмная: выбор
+    # светлой/тёмной по картинке (smartScheme) выключен и в шелле, и у
+    # таймера (--no-smart); вариант схемы тоже не меняется сам.
     cli.settings = {
       # Приложения красит theme-sync (шаблоны noctalia). Из встроенного у
       # Caelestia оставлены только рамки Hyprland и vesktop (тему включить
@@ -210,6 +222,11 @@ in
     settings = {
       general.apps.terminal = [ "kitty" ];
 
+      # Светлая/тёмная — не от обоев: всегда тёмная (см. cli.settings).
+      services.smartScheme = false;
+      # Локаль en_US — Auto выбрал бы °F.
+      services.weatherUnits = "Celsius";
+
       # Как было в noctalia: блокировка через 10 мин, экран гаснет через 11,
       # без сна. Заводское у Caelestia — 3 / 5 / suspendThenHibernate на 10.
       general.idle.timeouts = [
@@ -239,9 +256,7 @@ in
 
       # Гибрид с NVIDIA (ноут): график GPU в панели — по iGPU из sysfs.
       # Auto выбрал бы nvidia-smi раз в секунду, а он будит спящую dGPU.
-      services = lib.mkIf osConfig.hardware.nvidia.prime.offload.enable {
-        gpuType = "Generic";
-      };
+      services.gpuType = lib.mkIf osConfig.hardware.nvidia.prime.offload.enable "Generic";
 
       # Список заменяется целиком, поэтому перечислены все заводские значки.
       # Отличия: kbLayout (раскладка, по умолчанию выкл.) и батарея только
@@ -289,7 +304,7 @@ in
     Unit.Description = "Случайные обои Caelestia";
     Service = {
       Type = "oneshot";
-      ExecStart = "${config.programs.caelestia.cli.package}/bin/caelestia wallpaper -r ${config.home.homeDirectory}/Pictures/wallpaper";
+      ExecStart = "${config.programs.caelestia.cli.package}/bin/caelestia wallpaper --no-smart -r ${config.home.homeDirectory}/Pictures/wallpaper";
     };
   };
   systemd.user.timers.caelestia-wallpaper = {
@@ -326,6 +341,11 @@ in
       # Фокус с клавиатуры (hjkl и прочее) не тащит курсор за собой; фокус
       # за мышью — follow_mouse = 1 по умолчанию.
       cursor.no_warps = true;
+      # Без него фокус (hjkl) с полноэкранного окна никуда не уходит. На
+      # scroll-столе фуллскрин — часть ленты: лента листается к соседу, окно
+      # остаётся полноэкранным в своей колонке; на прочих столах фокус идёт
+      # к соседнему окну, фуллскрин снимается.
+      binds.movefocus_cycles_fullscreen = true;
 
       general = {
         # Обычный тайлинг. Лента колонок (scrolling) и «как в KDE» — режимы
