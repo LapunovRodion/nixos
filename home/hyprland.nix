@@ -11,8 +11,25 @@ let
   caelestiaSrc = pkgs.applyPatches {
     name = "caelestia-shell-bar-position";
     src = inputs.caelestia-shell;
-    patches = [ ./caelestia/bar-position.patch ];
+    # taskbar.patch + Taskbar.qml — окна кнопками в нижнем баре (float-стол).
+    # BarShatter.qml + шейдеры — бар перелетает на новый край клетками.
+    patches = [ ./caelestia/bar-position.patch ./caelestia/taskbar.patch ];
+    postPatch = ''
+      cp ${./caelestia/Taskbar.qml} modules/bar/components/Taskbar.qml
+      cp ${./caelestia/BarShatter.qml} modules/drawers/BarShatter.qml
+      cp ${barShaders}/* modules/drawers/
+    '';
   };
+  # Шейдеры QML-шелла — в .qsb заранее (так же qt_add_shaders собирает
+  # шейдеры плагина Caelestia).
+  barShaders = pkgs.runCommand "caelestia-bar-shaders" {
+    nativeBuildInputs = [ pkgs.qt6.qtshadertools ];
+  } ''
+    mkdir $out
+    for f in ${./caelestia/shaders}/*; do
+      qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o $out/$(basename $f).qsb $f
+    done
+  '';
   # Тот же Quickshell, что у шелла, — им же запускается обзор столов ниже.
   quickshell = inputs.caelestia-shell.inputs.quickshell.packages.${system}.default.override {
     withX11 = false;
@@ -47,8 +64,10 @@ let
       columns = 1;
       hideEmptyRows = true;
       # Доля размера монитора на миниатюру стола; заводские 0.16 для
-      # одной колонки мелковаты.
-      scale = 0.22;
+      # одной колонки мелковаты и сжимаются в «пиксели».
+      scale = 0.3;
+      # Без затемнения поверх миниатюры — окно видно как есть.
+      effects.windowOverlayOpacity = 0;
       # Сдвиг номеров по Hyprland id монитора: столы у каждого монитора
       # свои (binds.lua). id 0 — левый монитор, 1… — остальные: на десктопе
       # 1 — зеркало Samsung, 2 — Dell; на ноуте 1 — внешний.
@@ -56,6 +75,8 @@ let
       workspaceMap = [ 0 10 10 10 ];
       showSpecialWorkspaces = true;
     };
+    # Иконка приложения поверх миниатюры закрывала само окно.
+    windowPreview.showIcons = false;
   };
   overviewConfigDir = pkgs.runCommand "quickshell-overview" { } ''
     cp -r ${pkgs.fetchFromGitHub {
@@ -206,6 +227,13 @@ in
       # Пустые столы не показываются.
       bar.workspaces.showUnoccupied = false;
 
+      # Заводской список + taskbar: в нижнем баре (float-стол) он
+      # показывается вместо activeWindow (home/caelestia/Taskbar.qml).
+      bar.entries = map (id: { inherit id; enabled = true; }) [
+        "logo" "workspaces" "spacer" "activeWindow" "taskbar" "spacer"
+        "tray" "clock" "statusIcons" "power"
+      ];
+
       # Часы на столе — слева сверху, где стояли в noctalia.
       background.desktopClock = { enabled = true; position = "top-left"; };
 
@@ -295,6 +323,9 @@ in
         numlock_by_default = true;
         touchpad.natural_scroll = true;
       };
+      # Фокус с клавиатуры (hjkl и прочее) не тащит курсор за собой; фокус
+      # за мышью — follow_mouse = 1 по умолчанию.
+      cursor.no_warps = true;
 
       general = {
         # Обычный тайлинг. Лента колонок (scrolling) и «как в KDE» — режимы
@@ -304,6 +335,18 @@ in
         gaps_in = 5;
         gaps_out = 10;
         border_size = 2;
+        # Плавающие окна (float-стол, ./hyprland/floating.lua): размер —
+        # за край или угол без Mod, при перетаскивании липнут к краям
+        # экрана и соседним окнам.
+        resize_on_border = true;
+        extend_border_grab_area = 15;
+        hover_icon_on_border = true;
+        snap = {
+          enabled = true;
+          window_gap = 10;
+          monitor_gap = 10;
+          respect_gaps = true;
+        };
       };
       # Без него togglesplit (Mod+R в tile) отказывает: «can't togglesplit».
       dwindle.preserve_split = true;
@@ -312,7 +355,17 @@ in
         column_width = 0.5;
         explicit_column_widths = "0.33333, 0.5, 0.66667";
       };
-      decoration.rounding = 16;
+      decoration = {
+        rounding = 16;
+        # Тень — чтобы перекрытые плавающие окна читались; у тайловых её
+        # снимает правило ниже.
+        shadow = {
+          enabled = true;
+          range = 20;
+          render_power = 3;
+          color = "rgba(00000066)";
+        };
+      };
 
       misc = {
         # Свои обои и логотип Hyprland не нужны — фон рисует Caelestia.
@@ -339,13 +392,14 @@ in
     # Собраны под тот же Hyprland из nixpkgs, что и programs.hyprland.
     plugins = with pkgs.hyprlandPlugins; [ hyprbars ];
 
-    # Заголовки — только у плавающих окон (правило динамическое: снял
-    # float — заголовок пропал).
+    # Заголовки и тень — только у плавающих окон (правило динамическое:
+    # снял float — заголовок пропал).
     settings.window_rule = [
       {
         name = "hyprbars-tiled";
         match.float = false;
         "hyprbars:no_bar" = true;
+        no_shadow = true;
       }
       # kitty и Zen помнят, что были развёрнуты, и сами просят maximize при
       # открытии — новое окно закрывало все остальные на столе. Развернуть
@@ -358,32 +412,58 @@ in
     ];
 
     # Столы листаются вверх-вниз, как в niri, — во всех режимах (modes.lua).
-    settings.animation = [{
-      leaf = "workspaces";
-      enabled = true;
-      speed = 6;
-      bezier = "default";
-      style = "slidevert";
-    }];
+    # Кривая easeOutQuint объявлена в modes.lua (hl.curve: settings её не
+    # умеют, а Lua-файлы подключаются раньше анимаций). Столы — 20% сдвига с
+    # проявлением; окна — тем же торможением: смена режима и сдвиг от бара
+    # (бар уезжает-приезжает сам, bar-position.patch). Скорость столов —
+    # в такт уходу и выходу бара.
+    settings.animation = [
+      {
+        leaf = "workspaces";
+        enabled = true;
+        speed = 5;
+        bezier = "easeOutQuint";
+        style = "slidefadevert 20%";
+      }
+      {
+        leaf = "windows";
+        enabled = true;
+        speed = 4;
+        bezier = "easeOutQuint";
+      }
+      {
+        leaf = "windowsMove";
+        enabled = true;
+        speed = 4;
+        bezier = "easeOutQuint";
+      }
+    ];
 
     # Размытие под полупрозрачными панелями Caelestia. Бар и все выезжающие
     # панели — один слой caelestia-drawers на весь экран; ignore_alpha
     # не размывает его прозрачную часть (иначе мутным стал бы весь экран).
-    settings.layer_rule = [{
-      name = "caelestia-blur";
-      match.namespace = "^caelestia-drawers$";
-      blur = true;
-      ignore_alpha = 0.57;
-    }];
+    # Анимации у шелла свои; анимация слоя Hyprland видна только при смене
+    # края бара (слой пересоздаётся) — рамка экрана мигала бы.
+    settings.layer_rule = [
+      {
+        name = "caelestia-blur";
+        match.namespace = "^caelestia-drawers$";
+        blur = true;
+        ignore_alpha = 0.57;
+        no_anim = true;
+      }
+    ];
 
     # Мониторы и автозапуск под них — hosts/<машина>/hyprland.lua,
     # бинды — ./hyprland/binds.lua, режимы столов — ./hyprland/modes.lua,
-    # заголовки окон — ./hyprland/bars.lua. Все подключаются require'ом.
+    # поведение float-стола — ./hyprland/floating.lua, заголовки окон —
+    # ./hyprland/bars.lua. Все подключаются require'ом.
     extraLuaFiles = {
       host = osConfig.local.hyprlandOutputs;
       binds = ./hyprland/binds.lua;
       colors = ./hyprland/colors.lua;
       modes = ./hyprland/modes.lua;
+      floating = ./hyprland/floating.lua;
       bars = ./hyprland/bars.lua;
     };
   };

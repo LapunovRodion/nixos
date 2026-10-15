@@ -1,0 +1,28 @@
+diff --git a/modules/bar/Bar.qml b/modules/bar/Bar.qml
+index 51df052..d76015f 100644
+--- a/modules/bar/Bar.qml
++++ b/modules/bar/Bar.qml
+@@ -167,9 +167,23 @@ GridLayout {
+                     }
+                 }
+             }
++            // Нижний бар (float-стол) — окна кнопками вместо заголовка
++            // активного: taskbar и activeWindow взаимозаменяемы.
++            DelegateChoice {
++                roleValue: "taskbar"
++                delegate: EntryWrapper {
++                    visible: root.horizontal && root.Config.bar.position === "bottom"
++
++                    Taskbar {
++                        screen: root.screen
++                    }
++                }
++            }
+             DelegateChoice {
+                 roleValue: "activeWindow"
+                 delegate: EntryWrapper {
++                    visible: !(root.horizontal && root.Config.bar.position === "bottom")
++
+                     ActiveWindow {
+                         objectName: "taskbarActiveWindow"
+                         bar: root

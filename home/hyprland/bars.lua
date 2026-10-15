@@ -22,7 +22,8 @@ hl.config({
 })
 
 -- Кнопки справа налево: закрыть, развернуть, свернуть (на special:minimized,
--- вернуть — Mod+M / Mod+Shift+M, см. modes.lua).
+-- вернуть — Mod+M / Mod+Shift+M, см. modes.lua), поверх всех (pin: окно
+-- над остальными и на всех столах; повторно — открепить).
 local function button(bg, fg, icon, action)
   hl.plugin.hyprbars.add_button({
     bg_color = col(bg[1], bg[2]),
@@ -38,3 +39,4 @@ button({ "tertiary", "d1c88b" }, { "onTertiary", "363100" }, "󰖯",
   [[hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" })]])
 button({ "secondary", "cdc6b0" }, { "onSecondary", "343020" }, "󰖰",
   [[hl.dsp.window.move({ workspace = "special:minimized", follow = false })]])
+button({ "primary", "d6c76d" }, { "onPrimary", "373100" }, "󰐃", "hl.dsp.window.pin()")

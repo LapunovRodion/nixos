@@ -270,10 +270,10 @@ index 1ceb9b6c..51df0528 100644
          implicitWidth: item?.implicitWidth ?? 0
          implicitHeight: item?.implicitHeight ?? 0
 diff --git a/modules/bar/BarWrapper.qml b/modules/bar/BarWrapper.qml
-index 063c0d73..c8395c84 100644
+index 063c0d73..22a855de 100644
 --- a/modules/bar/BarWrapper.qml
 +++ b/modules/bar/BarWrapper.qml
-@@ -14,38 +14,46 @@ Item {
+@@ -14,38 +14,80 @@ Item {
      required property ScreenState screenState
      required property BarPopouts.Wrapper popouts
      required property bool fullscreen
@@ -287,11 +287,46 @@ index 063c0d73..c8395c84 100644
      readonly property int padding: Math.max(Tokens.padding.small, Config.border.thickness)
 -    readonly property int contentWidth: Tokens.sizes.bar.innerWidth + padding * 2
 -    readonly property int exclusiveZone: !disabled && (Config.bar.persistent || screenState.bar) ? contentWidth : Config.border.thickness
+-    readonly property bool shouldBeVisible: !fullscreen && !disabled && (Config.bar.persistent || screenState.bar || isHovered)
 +    readonly property int contentThickness: Tokens.sizes.bar.innerWidth + padding * 2
 +    readonly property int exclusiveZone: !disabled && (Config.bar.persistent || screenState.bar) ? contentThickness : Config.border.thickness
-     readonly property bool shouldBeVisible: !fullscreen && !disabled && (Config.bar.persistent || screenState.bar || isHovered)
++    readonly property bool shouldBeVisible: !arriving && !leaving && !fullscreen && !disabled && (Config.bar.persistent || screenState.bar || isHovered)
      property bool isHovered
 +    property real extent: fullscreen ? 0 : Config.border.thickness
++    // A new bar starts collapsed and slides in once arriving is cleared (Drawers.qml), or appears at
++    // once with snapIn() where BarShatter has assembled it. While arriving its content is loaded and
++    // laid out, clipped away, for BarShatter to draw from.
++    property bool arriving: true
++    property bool leaving
++    property bool snap
++    readonly property alias barContent: content
++
++    // leave() slides the bar out and emits gone() when done
++    signal gone
++    // capture() grabs the bar for BarShatter and emits captured() with the image and where it was
++    signal captured(var from)
++
++    function leave(): void {
++        if (leaving)
++            return;
++        const shown = shouldBeVisible;
++        leaving = true;
++        if (!shown)
++            gone();
++    }
++
++    function capture(): void {
++        const p = content.mapToItem(null, 0, 0);
++        const rect = Qt.rect(p.x, p.y, content.width, content.height);
++        if (!content.grabToImage(result => captured({ result, rect, side: position })))
++            leave();
++    }
++
++    function snapIn(): void {
++        snap = true;
++        arriving = false;
++        snap = false;
++    }
  
      function closeTray(): void {
          (content.item as Bar)?.closeTray();
@@ -316,7 +351,7 @@ index 063c0d73..c8395c84 100644
      clip: true
 -    visible: width > Config.border.thickness
 -    implicitWidth: fullscreen ? 0 : Config.border.thickness
-+    visible: extent > Config.border.thickness
++    visible: extent > Config.border.thickness || arriving
 +    implicitWidth: extent
 +    implicitHeight: extent
  
@@ -330,7 +365,11 @@ index 063c0d73..c8395c84 100644
          }
      }
  
-@@ -56,7 +64,7 @@ Item {
+@@ -53,19 +95,25 @@ Item {
+         Transition {
+             from: ""
+             to: "visible"
++            enabled: !root.snap
  
              Anim {
                  target: root
@@ -339,8 +378,14 @@ index 063c0d73..c8395c84 100644
              }
          },
          Transition {
-@@ -65,7 +73,7 @@ Item {
+             from: "visible"
+             to: ""
  
++            onRunningChanged: {
++                if (!running && root.leaving)
++                    root.gone();
++            }
++
              Anim {
                  target: root
 -                property: "implicitWidth"
@@ -348,7 +393,7 @@ index 063c0d73..c8395c84 100644
                  type: Anim.Emphasized
              }
          }
-@@ -74,18 +82,22 @@ Item {
+@@ -74,18 +122,22 @@ Item {
      Loader {
          id: content
  
@@ -359,10 +404,11 @@ index 063c0d73..c8395c84 100644
 +        anchors.left: root.horizontal ? parent.left : undefined
          anchors.right: parent.right
  
+-        active: root.shouldBeVisible
 +        width: root.contentThickness
 +        height: root.contentThickness
 +
-         active: root.shouldBeVisible
++        active: root.shouldBeVisible || root.arriving
  
          sourceComponent: Bar {
 -            width: root.contentWidth
@@ -1260,41 +1306,100 @@ index 9f82df2d..78326315 100644
          implicitHeight: panel.height
          radius: Tokens.rounding.extraLarge
 diff --git a/modules/drawers/Drawers.qml b/modules/drawers/Drawers.qml
-index aad8f9f4..b77755ec 100644
+index aad8f9f4..1b44a57a 100644
 --- a/modules/drawers/Drawers.qml
 +++ b/modules/drawers/Drawers.qml
-@@ -12,15 +12,54 @@ Variants {
+@@ -12,15 +12,142 @@ Variants {
  
          required property ShellScreen modelData
  
 +        // The bar's orientation is baked into the layouts, loaders and running animations of every
 +        // drawer, so a live position change rebuilds the screen's windows instead of converting them
 +        // in place, which leaves half of them still facing the old edge.
-+        function rebuild(): void {
-+            loader.active = false;
-+            loader.active = true;
++        // Two slots: a rebuild loads the new windows into the free one and drops the old ones only once
++        // the new have drawn a frame, so the frame and bar never blink out. Dropped windows linger for a
++        // while after the loader lets go, so they're hidden first instead of stacking over the new ones.
++        property bool flip
++        property bool handover
++        readonly property Drawer current: ((flip ? second : first).item as Drawer) ?? null
++        // The old bar's snapshot for the new windows' BarShatter (null: the new bar slides in)
++        property var pendingFrom
++
++        function rebuild(from: var): void {
++            pendingFrom = from ?? null;
++            dropOld(); // A rebuild mid-handover drops the oldest windows
++            handover = true;
++            flip = !flip;
++        }
++
++        function dropOld(): void {
++            ((flip ? first : second).item as Drawer)?.hide();
++            handover = false;
 +        }
 +
 +        LazyLoader {
-+            id: loader
++            id: first
 +
-+            active: true
++            active: !scope.flip || scope.handover
 +
 +            Drawer {
 +                screen: scope.modelData
++                from: scope.pendingFrom
++            }
++        }
++
++        LazyLoader {
++            id: second
++
++            active: scope.flip || scope.handover
++
++            Drawer {
++                screen: scope.modelData
++                from: scope.pendingFrom
 +            }
 +        }
 +
 +        Connections {
 +            function onConfigPositionChanged(): void {
-+                Qt.callLater(scope.rebuild);
++                const bar = scope.current.bar;
++                if (bar.extent === bar.contentThickness)
++                    bar.capture();
++                else
++                    bar.leave();
 +            }
 +
 +            function onConfigDashboardPositionChanged(): void {
 +                Qt.callLater(scope.rebuild);
 +            }
 +
-+            target: (loader.item as Drawer)?.geometry ?? null
++            target: scope.current?.geometry ?? null
++        }
++
+         Exclusions {
+             screen: scope.modelData
+-            bar: content.bar
++            bar: scope.current?.bar ?? null
++        }
++
++        Connections {
++            function onGone(): void {
++                Qt.callLater(scope.rebuild);
++            }
++
++            function onCaptured(from: var): void {
++                Qt.callLater(scope.rebuild, from);
++            }
++
++            target: scope.current?.bar ?? null
++        }
++
++        Connections {
++            function onDrawnChanged(): void {
++                if (scope.handover)
++                    scope.dropOld();
++            }
++
++            target: scope.current
 +        }
 +    }
 +
@@ -1302,14 +1407,33 @@ index aad8f9f4..b77755ec 100644
 +        id: drawer
 +
 +        required property ShellScreen screen
++        // Frozen on creation, like the bar position: only the windows built for a flight fly
++        required property var from
 +
 +        readonly property alias geometry: content.geometry
++        readonly property alias bar: content.bar
++        property bool drawn
 +
-         Exclusions {
--            screen: scope.modelData
-+            screen: drawer.screen
-             bar: content.bar
-+            geometry: content.geometry
++        Component.onCompleted: from = from // Breaks the binding
++
++        function hide(): void {
++            content.visible = false;
++        }
++
++        // The bar arrives once its window is on screen, or the first frames of the slide are lost
++        onDrawnChanged: {
++            if (from)
++                shatter.start();
++            else
++                content.bar.arriving = false;
++        }
++
++        Connections {
++            function onFrameSwapped(): void {
++                drawer.drawn = true;
++            }
++
++            target: drawer.drawn ? null : content.contentItem.Window.window
          }
  
          ContentWindow {
@@ -1317,15 +1441,25 @@ index aad8f9f4..b77755ec 100644
  
 -            screen: scope.modelData
 +            screen: drawer.screen
++
++            BarShatter {
++                id: shatter
++
++                anchors.fill: parent
++                z: 1
++                from: drawer.from
++                bar: content.bar
++                onFinished: content.bar.snapIn()
++            }
          }
      }
  }
 diff --git a/modules/drawers/EdgeGeometry.qml b/modules/drawers/EdgeGeometry.qml
 new file mode 100644
-index 00000000..d5fb87af
+index 00000000..b4d859a4
 --- /dev/null
 +++ b/modules/drawers/EdgeGeometry.qml
-@@ -0,0 +1,62 @@
+@@ -0,0 +1,66 @@
 +import QtQuick
 +import qs.modules.bar as Bar
 +
@@ -1337,7 +1471,9 @@ index 00000000..d5fb87af
 +    required property string configPosition
 +    required property string configDashboardPosition
 +
-+    readonly property string position: configPosition === "top" || configPosition === "bottom" ? configPosition : "left"
++    // Frozen on creation: a position change rebuilds the windows (Drawers.qml) once the bar has
++    // slid out, so the old bar leaves through its own edge instead of half-turning to the new one
++    property string position: configPosition === "top" || configPosition === "bottom" ? configPosition : "left"
 +    readonly property bool horizontal: position !== "left"
 +    readonly property bool barOnLeft: position === "left"
 +    readonly property bool barOnTop: position === "top"
@@ -1383,47 +1519,64 @@ index 00000000..d5fb87af
 +        return horizontal ? x : y;
 +    }
 +
++    Component.onCompleted: position = position // Breaks the binding
++
 +    onConfigPositionChanged: {
 +        if (!["left", "top", "bottom"].includes(configPosition))
 +            console.warn(`Invalid bar position '${configPosition}', falling back to left`);
 +    }
 +}
 diff --git a/modules/drawers/Exclusions.qml b/modules/drawers/Exclusions.qml
-index fe72730c..d6809be4 100644
+index fe72730c..8b64dd2f 100644
 --- a/modules/drawers/Exclusions.qml
 +++ b/modules/drawers/Exclusions.qml
-@@ -11,14 +11,16 @@ Scope {
+@@ -10,15 +10,29 @@ Scope {
+     id: root
  
      required property ShellScreen screen
++    // Null while the drawers rebuild; the zones keep the last value meanwhile
      required property Bar.BarWrapper bar
-+    required property EdgeGeometry geometry
++    property int barZone
++
++    // Outlives the drawers and follows the live config rather than their frozen geometry: the
++    // zones move as soon as the position changes, so windows reflow once, while the old bar is
++    // still sliding out, instead of again when the rebuilt drawers map
++    Binding {
++        target: root
++        property: "barZone"
++        value: root.bar?.exclusiveZone ?? 0
++        when: root.bar !== null
++        restoreMode: Binding.RestoreNone
++    }
  
      ExclusionZone {
          anchors.left: true
 -        exclusiveZone: root.bar.exclusiveZone
-+        hasBar: root.geometry.barOnLeft
++        edge: "left"
      }
  
      ExclusionZone {
          anchors.top: true
-+        hasBar: root.geometry.barOnTop
++        edge: "top"
      }
  
      ExclusionZone {
-@@ -27,12 +29,15 @@ Scope {
+@@ -27,12 +41,17 @@ Scope {
  
      ExclusionZone {
          anchors.bottom: true
-+        hasBar: root.geometry.barOnBottom
++        edge: "bottom"
      }
  
      component ExclusionZone: StyledWindow {
-+        property bool hasBar
++        property string edge
++        readonly property string position: contentItem.Config.bar.position
++        readonly property bool hasBar: edge === (position === "top" || position === "bottom" ? position : "left")
 +
          screen: root.screen
          name: "border-exclusion"
 -        exclusiveZone: contentItem.Config.border.thickness
-+        exclusiveZone: hasBar ? root.bar.exclusiveZone : contentItem.Config.border.thickness
++        exclusiveZone: hasBar ? root.barZone : contentItem.Config.border.thickness
          mask: Region {}
          implicitWidth: 1
          implicitHeight: 1

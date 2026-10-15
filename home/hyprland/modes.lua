@@ -2,17 +2,23 @@
 --   tile   — dwindle, бар Caelestia слева;
 --   scroll — лента колонок как в niri, бар сверху;
 --   float  — как KDE/Windows: все окна плавают, с заголовками (bars.lua),
---            бар снизу.
+--            бар снизу с окнами кнопками (home/caelestia/Taskbar.qml);
+--            размещение, снап, Alt+Tab — floating.lua.
 -- Столы листаются вверх-вниз во всех режимах (анимация — home/hyprland.nix).
 -- Подключается из home/hyprland.nix (extraLuaFiles).
 --
 -- Режим живёт, пока на столе есть окна: опустевший стол Hyprland удаляет,
--- и режим уходит вместе с ним — тот же номер потом снова tile.
+-- и режим уходит вместе с ним — тот же номер потом снова tile. float-стол
+-- постоянный (иначе со свёрнутым последним окном пропали бы и кнопки окон)
+-- — живёт до смены режима.
 -- Режимы лежат в ~/.local/state/hypr/workspace-modes: Lua перечитывается
 -- при каждом `hyprctl reload` (его делает и theme-sync при смене обоев).
 -- Бар двигается файлом ~/.config/caelestia/monitors/<выход>/shell.json —
 -- bar.position из патча home/caelestia/bar-position.patch, шелл следит
 -- за файлом сам.
+
+-- Кривая анимаций (их список — home/hyprland.nix, settings.animation).
+hl.curve("easeOutQuint", { type = "bezier", points = { { 0.23, 1 }, { 0.32, 1 } } })
 
 local mod = "SUPER"
 local bind, dsp = hl.bind, hl.dsp
@@ -59,13 +65,30 @@ end
 
 -- Раскладка стола — правилом. Правило применяется на лету, выключенное —
 -- откатывает стол к общему general.layout.
-local rules = {}
+-- float-стол — правилом окна: новое окно сразу открывается плавающим, по
+-- центру и с размером, каким его закрыли (persistent_size; size в правиле
+-- его перебил бы — слишком большие ужимает floating.lua). Модальные
+-- диалоги не трогаются. Метка floatrule — «плавает из-за правила», по ней
+-- window.open ниже ставит постоянную modefloat.
+local rules = {} -- id → правила стола
 local function applyRule(id)
-  if rules[id] then rules[id]:set_enabled(false) end
+  for _, r in ipairs(rules[id] or {}) do r:set_enabled(false) end
   rules[id] = nil
-  local m = MODES[modes[id] or "tile"]
+  local name = modes[id] or "tile"
+  local m = MODES[name]
   if m.layout then
-    rules[id] = hl.workspace_rule({ workspace = tostring(id), layout = m.layout })
+    rules[id] = { hl.workspace_rule({ workspace = tostring(id), layout = m.layout }) }
+  elseif name == "float" then
+    rules[id] = {
+      hl.workspace_rule({ workspace = tostring(id), persistent = true }),
+      hl.window_rule({
+        match = { workspace = tostring(id), modal = false },
+        float = true,
+        center = true,
+        persistent_size = true,
+        tag = "+floatrule",
+      }),
+    }
   end
 end
 
@@ -85,17 +108,27 @@ end
 
 -- float-режим: окно плавает и помечено modefloat. Снимается float только
 -- с помеченных — диалоги, плавающие сами по себе, такими и остаются.
-local function tagged(w)
+-- Метка от правила окна — динамическая, со звёздочкой (floatrule*).
+local function hasTag(w, tag)
   for _, t in ipairs(w.tags or {}) do
-    if t == "modefloat" then return true end
+    if t == tag or t == tag .. "*" then return true end
   end
   return false
 end
+
+local function tagged(w)
+  return hasTag(w, "modefloat")
+end
+
+-- Модуль для floating.lua: режим стола, метка и хуки — place (размер и
+-- место окна, которое режим только что сделал плавающим) и snap (Mod+стрелки).
+local M = { modeOf = modeOf, tagged = tagged }
 
 local function setFloat(w, on)
   if on and not w.floating then
     hl.dispatch(dsp.window.float({ window = w, action = "enable" }))
     hl.dispatch(dsp.window.tag({ window = w, tag = "+modefloat" }))
+    if M.place then M.place(w) end
   elseif not on and tagged(w) then
     hl.dispatch(dsp.window.tag({ window = w, tag = "-modefloat" }))
     hl.dispatch(dsp.window.float({ window = w, action = "disable" }))
@@ -142,8 +175,14 @@ hl.on("workspace.removed", prune)
 hl.on("monitor.added", syncBar)
 hl.on("workspace.active", syncBar)
 
+-- Окно открылось на float-столе: пометить, сделать плавающим (правило не
+-- успевает, если стол назначен при запуске, а не активный) и разместить.
+-- Плавает само, без метки правила (модальное), — не трогать.
 hl.on("window.open", function(w)
-  if modeOf(w.workspace) == "float" then setFloat(w, true) end
+  if modeOf(w.workspace) ~= "float" or (w.floating and not hasTag(w, "floatrule")) then return end
+  if not w.floating then hl.dispatch(dsp.window.float({ window = w, action = "enable" })) end
+  hl.dispatch(dsp.window.tag({ window = w, tag = "+modefloat" }))
+  if M.place then M.place(w) end
 end)
 -- Спецстолы (свёрнутые окна — special:minimized) окно не трогают.
 hl.on("window.move_to_workspace", function(w, ws)
@@ -163,7 +202,7 @@ end
 
 -- Mod+J/K — как window-focus-or-workspace-* в niri (и Umbriel): на краю
 -- фокус уходит на соседний стол этого монитора. Во всех режимах; стрелки
--- вверх-вниз — только фокус окна.
+-- вверх-вниз — только фокус окна (на float-столе стрелки — снап, ниже).
 -- Край — по геометрии: без окна снизу dwindle не стоит на месте, а
 -- уводит фокус к соседу сбоку, так что «фокус не сдвинулся» не годится.
 local function hasNeighbour(dir)
@@ -189,8 +228,12 @@ end
 local dirs = { left = "H", down = "J", up = "K", right = "L" }
 local swap = { left = "swapcol l", right = "swapcol r" }
 local edge = { down = "m+1", up = "m-1" }
+-- Стрелки на float-столе — снап окна (floating.lua), как в Plasma/Windows.
 for dir, vim in pairs(dirs) do
-  bind(mod .. " + " .. dir, dsp.focus({ direction = dir }))
+  bind(mod .. " + " .. dir, function()
+    if activeMode() == "float" and M.snap then return M.snap(dir) end
+    hl.dispatch(dsp.focus({ direction = dir }))
+  end)
   bind(mod .. " + " .. vim, edge[dir] and focusOrWorkspace(dir, edge[dir]) or dsp.focus({ direction = dir }))
   for _, key in ipairs({ dir, vim }) do
     bind(mod .. " + CTRL + " .. key, byMode({
@@ -229,3 +272,5 @@ bind(mod .. " + SHIFT + M", function()
   local ws = hl.get_active_workspace()
   if ws then hl.dispatch(dsp.window.move({ workspace = ws.id })) end
 end)
+
+return M

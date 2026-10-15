@@ -3,16 +3,20 @@
 --
 -- current.lua пишет `caelestia` при каждой смене схемы (theme.enableHypr),
 -- а перечитывается он только с конфигом — reload делает хук перекраски
--- (home/caelestia/theme-sync.sh). Пары как были в Umbriel: фокус —
--- tertiary, остальные — tertiaryContainer. Файла ещё нет (чистая машина,
+-- (home/caelestia/theme-sync.sh). Фокус — градиент primary→tertiary,
+-- остальные без рамки: пара tertiary/tertiaryContainer в светлых схемах
+-- почти не различалась. Файла ещё нет (чистая машина,
 -- обои ни разу не ставились) — остаются цвета Hyprland по умолчанию.
 local ok, c = pcall(dofile, os.getenv("HOME") .. "/.config/hypr/scheme/current.lua")
 if ok and type(c) == "table" then
   hl.config({
     general = {
       col = {
-        active_border = "rgb(" .. c.tertiary .. ")",
-        inactive_border = "rgb(" .. c.tertiaryContainer .. ")",
+        active_border = {
+          colors = { "rgb(" .. c.primary .. ")", "rgb(" .. c.tertiary .. ")" },
+          angle = 45,
+        },
+        inactive_border = "rgba(00000000)",
       },
     },
   })
