@@ -89,7 +89,6 @@
     # Имя каталога профиля — из ~/.config/zen/profiles.ini.
     zenProfileDir = "zroyjfew.Default Profile";
     umbrielOutputs = ./umbriel.toml;
-    hyprlandOutputs = ./hyprland.lua;
     wayvncConfig = ./wayvnc-config;
   };
 }

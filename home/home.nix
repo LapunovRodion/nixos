@@ -95,8 +95,8 @@ in
 
   home.stateVersion = "26.05";
 
-  # Рабочий стол (композитор + шелл) — не здесь: home/hyprland.nix или
-  # home/umbriel.nix, их подключает выбранный модуль в modules/common.nix.
+  # Рабочий стол (композитор + шелл) — не здесь: home/umbriel.nix, его
+  # подключает modules/umbriel.nix.
 
   # =============================================================
   # Раскладка, в которой хоткеи не зависят от языка.
@@ -1076,8 +1076,8 @@ in
   # --- монитор ресурсов (вместо glances) ---
   programs.btop = {
     enable = true;
-    # Палитра от обоев: themes/noctalia.theme пишет шаблон btop — noctalia
-    # (Umbriel) или theme-sync (Hyprland). Пока файла нет, btop берёт свою.
+    # Палитра от обоев: themes/noctalia.theme пишет шаблон btop — noctalia.
+    # Пока файла нет, btop берёт свою.
     settings.color_theme = "noctalia";
   };
 

@@ -5,9 +5,7 @@
 # Пользовательская (конфиги umbriel, весь noctalia.nix, X-сервер для
 # Steam) — home/umbriel.nix, подключается отсюда же, внизу.
 #
-# Включается одной строкой в imports modules/common.nix (вместо
-# ./hyprland.nix). Оба стола сразу не включать: и noctalia, и caelestia
-# — демоны уведомлений и бары, привязанные к graphical-session.target.
+# Включается строкой imports в modules/common.nix.
 # =============================================================
 
 {

@@ -240,14 +240,11 @@ in
 # =============================================================
 {
   # ---------------------------------------------------------------
-  # Рабочий стол (композитор + шелл) — ОДНА строка, второй модуль не
-  # подключать: оба шелла — бар и демон уведомлений, в одной сессии
-  # они бы дрались.
-  #   ./hyprland.nix — Hyprland + Caelestia
-  #   ./umbriel.nix  — Umbriel + noctalia (как было до 2026-10-14)
-  # Каждый модуль сам подтягивает свою home-часть (home/<имя>.nix).
+  # Рабочий стол (композитор + шелл): Umbriel + noctalia. Модуль сам
+  # подтягивает свою home-часть (home/umbriel.nix).
+  # Hyprland + Caelestia (2026-10-14…15) — в ветке git `caelestia`.
   # ---------------------------------------------------------------
-  imports = [ ./hyprland.nix ];
+  imports = [ ./umbriel.nix ];
 
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
@@ -341,8 +338,7 @@ in
   # ---------------------------------------------------------------
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];
-    # Бинарный кэш noctalia — без него она собирается локально. Нужен обоим
-    # столам: на Hyprland от noctalia — утилита перекраски (theme-sync).
+    # Бинарный кэш noctalia — без него она собирается локально.
     extra-substituters = [ "https://noctalia.cachix.org" ];
     extra-trusted-public-keys = [
       "noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
@@ -371,8 +367,7 @@ in
   };
 
   # ---------------------------------------------------------------
-  # 1. Композитор и шелл — modules/hyprland.nix или modules/umbriel.nix
-  # (см. imports в начале). Здесь — то, что нужно любому из них.
+  # 1. Композитор и шелл — modules/umbriel.nix (см. imports в начале).
   # ---------------------------------------------------------------
   # Secret-портал и пароли (Zen, Telegram, git-credential и т.п.).
   services.gnome.gnome-keyring.enable = true;
@@ -532,9 +527,6 @@ in
     impression           # запись ISO/img на флешку (ПКМ → «Записать на флешку»)
     imagemagick          # ПКМ на картинках: сжать / в webp / ресайз
     ffmpeg               # ПКМ на видео: сжать в mp4 / звук в mp3
-    # aseprite — пиксель-арт и спрайтовая анимация (unfree: кэша нет,
-    # собирается локально вместе со своим skia)
-    aseprite
     # CLI-утилиты
     gh          # github-cli
     lazygit
@@ -597,7 +589,23 @@ in
     # Профиль общий с Twilight (Vendor=Mozilla, Name=Zen у обеих),
     # так что история, вкладки, user.js и тема из noctalia остаются на месте.
     # Бинарь и .desktop называются zen-beta.
-    inputs.zen-browser.packages.${pkgs.stdenv.hostPlatform.system}.beta
+    #
+    # Гибрид с NVIDIA (ноут): Zen видит только EGL от Mesa. Иначе его
+    # видеодекодер (RDD) открывал /dev/nvidia0 и будил спящую dGPU, хоть
+    # VA-API и прибит к iGPU (hosts/laptop) — замер 2026-10-15: dGPU не спала
+    # ~30% времени. Обратная сторона: `nvidia-offload zen-beta` не сработает.
+    (let zen = inputs.zen-browser.packages.${pkgs.stdenv.hostPlatform.system}.beta; in
+      if config.hardware.nvidia.prime.offload.enable then
+        pkgs.symlinkJoin {
+          name = "zen-beta-mesa-egl";
+          paths = [ zen ];
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+          postBuild = ''
+            wrapProgram $out/bin/zen-beta \
+              --set __EGL_VENDOR_LIBRARY_FILENAMES /run/opengl-driver/share/glvnd/egl_vendor.d/50_mesa.json
+          '';
+        }
+      else zen)
     # claude-desktop сюда НЕ входит: ставится модулем programs.claude-desktop
     # ниже (свой пакет claude-desktop-vpn, обёрнутый на VPN, см. let выше)
 
@@ -612,9 +620,6 @@ in
     # ---- Почта ----
     thunderbird
     tutanota-desktop
-
-    # ---- Продуктивность ----
-    super-productivity   # таск-менеджер / таймтрекер
 
     # ---- Музыка ----
     # Aonsoku — десктоп-клиент Navidrome/Subsonic. Библиотека стримится

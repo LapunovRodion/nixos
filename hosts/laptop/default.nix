@@ -66,9 +66,20 @@
   # iGPU: radeonsi и render-узел AMD (by-path — номера renderD* не
   # гарантированы). Проверка, спит ли: cat /sys/bus/pci/devices/0000:01:00.0/power/runtime_status
   # (nvidia-smi для этого не годится — сам её будит).
+  #
+  # Umbriel (wlroots) — только на iGPU. Иначе он поднимает второй рендерер
+  # на NVIDIA, держит /dev/nvidia* открытыми, и dGPU не спит никогда (замер
+  # 2026-10-15: 300 из 300 с активна). Цена: HDMI ноута разведён на NVIDIA
+  # и под Umbriel не работает — внешний монитор только через USB-C/DP.
+  # Путь — своя udev-ссылка: by-path содержит «:», а это разделитель
+  # списка в WLR_DRM_DEVICES; номера cardN между загрузами не гарантированы.
+  services.udev.extraRules = ''
+    SUBSYSTEM=="drm", KERNEL=="card[0-9]*", KERNELS=="0000:65:00.0", SYMLINK+="dri/igpu"
+  '';
   environment.sessionVariables = {
     LIBVA_DRIVER_NAME = "radeonsi";
     MOZ_DRM_DEVICE = "/dev/dri/by-path/pci-0000:65:00.0-render";
+    WLR_DRM_DEVICES = "/dev/dri/igpu";
   };
 
   # ---- Чем эта машина отличается (см. modules/options.nix) ----
@@ -86,7 +97,6 @@
     hasBattery = true;
     zenProfileDir = "vkvdhp86.Default Profile";
     umbrielOutputs = ./umbriel.toml;
-    hyprlandOutputs = ./hyprland.lua;
 
     # Окружение разработки (см. modules/dev.nix). Выставить в false и
     # сделать switch — podman уйдёт из системы.

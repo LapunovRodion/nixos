@@ -4,11 +4,9 @@
 # поэтому в файле их нет.
 #
 # runtimeInputs обязателен целиком: хук запускается из user-сервиса
-# (noctalia или caelestia), где PATH минимальный, — coreutils и findutils
+# noctalia, где PATH минимальный, — coreutils и findutils
 # оттуда не взять. imagemagick при этом в systemPackages не нужен, он
 # приезжает замыканием этой обёртки.
-#
-# Общий для обоих столов: home/noctalia.nix и home/hyprland.nix.
 pkgs:
 pkgs.writeShellApplication {
   name = "kitty-gradient";

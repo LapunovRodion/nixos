@@ -1,5 +1,5 @@
 {
-  description = "artur NixOS: laptop + desktop, hyprland + caelestia (или umbriel + noctalia) + hysteria + claude";
+  description = "artur NixOS: laptop + desktop, umbriel + noctalia + hysteria + claude";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -29,15 +29,6 @@
     noctalia-community-plugins = {
       url = "github:noctalia-dev/community-plugins";
       flake = false;
-    };
-
-    # Caelestia — шелл на quickshell (бар, лаунчер, локскрин, уведомления)
-    # под Hyprland. Несёт свой homeManagerModules.default (programs.caelestia,
-    # см. home/hyprland.nix). Бинарного кэша нет: quickshell и qml-плагин
-    # шелла собираются локально.
-    caelestia-shell = {
-      url = "github:caelestia-dots/shell";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # agenix — секреты в git в зашифрованном виде (age поверх ssh-ключей).

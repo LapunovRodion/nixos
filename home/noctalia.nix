@@ -603,4 +603,12 @@ in
   # noctalia об этом не узнаёт. Путь к обоям в юните меняет его хеш,
   # и home-manager перезапускает шелл, когда набор обоев изменился.
   systemd.user.services.noctalia.Unit.X-Restart-Triggers = [ "${../wallpapers}" ];
+
+  # Гибрид с NVIDIA (ноут): шелл видит только EGL от Mesa, как и Zen
+  # (modules/common.nix). Иначе он держал /dev/nvidia* открытыми, и dGPU
+  # не засыпала. Проверено 2026-10-15: с переменной рендер на 780M, ни
+  # одного дескриптора nvidia у процесса.
+  systemd.user.services.noctalia.Service.Environment =
+    lib.mkIf osConfig.hardware.nvidia.prime.offload.enable
+      [ "__EGL_VENDOR_LIBRARY_FILENAMES=/run/opengl-driver/share/glvnd/egl_vendor.d/50_mesa.json" ];
 }
