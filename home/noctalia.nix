@@ -179,7 +179,10 @@ in
           # скрипт стоит на `set -euo pipefail`, и post_hook валится на каждой
           # смене обоев. Держать шаблон включённым можно только вместе с той
           # строкой; раз строки нет — нет и шаблона.
-          community_ids = [ "zen-browser" "obsidian" "lazygit" "yazi" "telegram" ];
+          # "obsidian" убран: Obsidian на Minimal (Rosé Pine), а шаблон на каждой
+          # смене обоев переписывал snippets/noctalia.css и плодил sync-conflict
+          # копии в Syncthing.
+          community_ids = [ "zen-browser" "lazygit" "yazi" "telegram" ];
 
           # Umbriel — шаблон ВСТРОЕННЫЙ (из пакета noctalia), но подключён
           # как user: у builtin "umbriel" apply.sh дописывает include в
