@@ -231,6 +231,10 @@ in
       # =============================================================
       ".claude/skills/archify".source = "${inputs.archify}/archify";
 
+      # Скилл REA (вход rea, см. flake.nix). Сам MCP-сервер — в ~/.claude.json.
+      ".claude/skills/reverse-engineer-anything".source =
+        "${inputs.rea}/.agents/skills/reverse-engineer-anything";
+
       # =============================================================
       # Обои — в git, каталогом целиком.
       #

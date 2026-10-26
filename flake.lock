@@ -383,6 +383,23 @@
         "type": "github"
       }
     },
+    "rea": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792309245,
+        "narHash": "sha256-GKgXQZdzsmr2bEffi+UaffY5TseJ7dSQvWwF1kuz2og=",
+        "owner": "morluto",
+        "repo": "rea",
+        "rev": "27dc42d10249f0410904a75c0997842eb03b931c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "morluto",
+        "ref": "rea-agents-6.7.0",
+        "repo": "rea",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "agenix": "agenix",
@@ -396,6 +413,7 @@
         "noctalia-community-plugins": "noctalia-community-plugins",
         "noctalia-official-plugins": "noctalia-official-plugins",
         "ouch-yazi": "ouch-yazi",
+        "rea": "rea",
         "starship-yazi": "starship-yazi",
         "tuios": "tuios",
         "yazi-plugins": "yazi-plugins",

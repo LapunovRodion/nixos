@@ -77,6 +77,17 @@
       flake = false;
     };
 
+    # rea — реверс-инжиниринг агентами. Две части: MCP-сервер (npm rea-agents,
+    # запускается через npx) и скилл reverse-engineer-anything. Скилл — отсюда,
+    # симлинком из home.nix; сервер зарегистрирован в ~/.claude.json командой
+    #   claude mcp add --scope user rea -- npx -y rea-agents@6.7.0 mcp
+    # Пин на тег релиза, чтобы скилл совпадал с версией сервера. Обновление:
+    # сменить тег здесь и версию в `claude mcp add` (remove + add) одновременно.
+    rea = {
+      url = "github:morluto/rea/rea-agents-6.7.0";
+      flake = false;
+    };
+
     # nixvim — neovim, целиком описанный на nix (декларативно, в git).
     nixvim = {
       url = "github:nix-community/nixvim";

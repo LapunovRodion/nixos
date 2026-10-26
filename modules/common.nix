@@ -132,6 +132,10 @@ let
   # бесполезна, в худшем — предложит агенту выполнить `npx skills add` поверх
   # каталога в /nix/store, доступного только на чтение. Переменная нужна ровно
   # внутри сессий claude, поэтому живёт в обёртке, а не в sessionVariables.
+  #
+  # Ghidra для MCP-сервера REA: он наследует окружение claude. analyzeHeadless
+  # из lib/ghidra берёт java из PATH (обёртка bin/ghidra его не даёт), поэтому
+  # openjdk21 — тот же JDK, с которым собран пакет.
   claude-code-vpn = pkgs.symlinkJoin {
     name = "claude-code-vpn";
     paths = [ pkgs.claude-code ];
@@ -141,7 +145,9 @@ let
         --set HTTPS_PROXY "http://127.0.0.1:3128" \
         --set HTTP_PROXY  "http://127.0.0.1:3128" \
         --set NO_PROXY    "localhost,127.0.0.1,::1" \
-        --set ARCHIFY_UPDATE_CHECK_DISABLED "1"
+        --set ARCHIFY_UPDATE_CHECK_DISABLED "1" \
+        --set GHIDRA_INSTALL_DIR "${pkgs.ghidra}/lib/ghidra" \
+        --prefix PATH : "${pkgs.openjdk21}/bin"
     '';
   };
 
@@ -493,6 +499,9 @@ in
     inputs.agenix.packages.${pkgs.stdenv.hostPlatform.system}.default
     # 4. Claude Code (CLI, unfree) — обёрнутый на VPN, см. let выше
     claude-code-vpn
+    # Ghidra — декомпилятор для REA (MCP rea, см. flake.nix): обёртка claude
+    # даёт ему GHIDRA_INSTALL_DIR и java. Здесь — ради GUI `ghidra`.
+    ghidra
     # 5. Obsidian (unfree) — само хранилище синхронизируется через syncthing ниже
     obsidian
     basalt      # то же хранилище Obsidian, но в терминале (TUI): `basalt`
@@ -546,6 +555,7 @@ in
     bitwarden-cli   # `bw` — плагин noctalia/bitwarden ходит в локальный `bw serve`,
                     # а не в облако. Под свой Vaultwarden: `bw config server <url>`
                     # ОДИН РАЗ до логина (или Server URL в настройках плагина).
+    bitwarden-desktop  # GUI-клиент того же Vaultwarden (vault.home.coresim.win на docker)
     python3         # хуки и MCP-шим плагина lowcache/claude-companion (stdlib, без pip)
     playerctl       # «что играет»: шим claude-companion + медиа-бинды niri
     fzf             # file-search и nix-search; home-manager кладёт свой fzf
