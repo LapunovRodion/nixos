@@ -262,6 +262,14 @@ in
   # Use latest kernel.
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
+  # Телефон как вебка: scrcpy пишет камеру в /dev/video9 (см. «Связь с
+  # телефоном»). exclusive_caps=1 — иначе браузеры не видят устройство.
+  boot.extraModulePackages = [ config.boot.kernelPackages.v4l2loopback ];
+  boot.kernelModules = [ "v4l2loopback" ];
+  boot.extraModprobeConfig = ''
+    options v4l2loopback video_nr=9 card_label="Phone" exclusive_caps=1
+  '';
+
   # zswap — сжатый кеш страниц ПЕРЕД свопом на диске: страница сначала
   # жмётся zstd и остаётся в RAM, и только вытесненное из этого пула
   # уезжает на диск по-настоящему.
@@ -588,6 +596,11 @@ in
     # 2026-07-27): нужна была разовая передача файлов, а не уведомления и экран.
     # Фоновая синхронизация папок и так на syncthing (см. ниже).
     localsend
+    # scrcpy — только как вебка по Wi-Fi (2026-10-28), v4l2loopback см. boot.
+    # Один раз: «Отладка по Wi-Fi» → adb pair IP:PORT; дальше adb connect IP:PORT и
+    # scrcpy --video-source=camera --camera-facing=back --v4l2-sink=/dev/video9 --no-playback
+    scrcpy
+    android-tools
 
     # ---- Batch 3b: браузер (из стороннего flake) ----
     # Zen — стабильная ветка (beta = релизы Zen). С 2026-07-28 стояла Twilight
