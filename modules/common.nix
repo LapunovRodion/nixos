@@ -10,6 +10,17 @@ let
   # JetBrains Mono.
   lyth-mono = pkgs.callPackage ../pkgs/lyth-mono.nix { };
 
+  # freshGram — форк Telegram Desktop, нет в nixpkgs. См. pkgs/freshgram.nix.
+  freshgram = pkgs.callPackage ../pkgs/freshgram.nix { };
+
+  # Hermes Desktop — официальный GUI к Hermes Agent из его flake. Подключается
+  # к агенту на сервере docker: Settings → Gateways → Remote gateway,
+  # https://hermes.home.coresim.win (только из tailnet), логин/пароль —
+  # HERMES_DASHBOARD_BASIC_AUTH_* в /var/lib/secrets/hermes.env на docker.
+  # minimal: локальный агент только с ядром (без интеграций, whisper и т. п., −~1 ГБ) —
+  # в remote-режиме всё выполняется на сервере, локальный агент не используется.
+  hermes-desktop = inputs.hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.minimal.hermesDesktop;
+
   # ---------------------------------------------------------------
   # vpn — состояние туннеля (сам клиент hysteria — в блоке «3» ниже)
   # ---------------------------------------------------------------
@@ -359,6 +370,11 @@ in
     ];
     # Одинаковые файлы в сторе схлопываются в хардлинки прямо при сборке.
     auto-optimise-store = true;
+    # Скачивание при обновлении: соединений к кэшу (дефолт 25) и путей,
+    # которые качаются одновременно (дефолт 16). Второе без первого не
+    # разгонится: все загрузки делят один пул соединений.
+    http-connections = 50;
+    max-substitution-jobs = 32;
   };
 
   # nh — обёртка над nix: ребилд с прогрессом и диффом пакетов, чистка стора.
@@ -584,8 +600,10 @@ in
 
     # ---- Batch 3a: мессенджеры, торрент (из nixpkgs) ----
     vesktop           # Discord-клиент (вместо discord)
-    ayugram-desktop   # форк Telegram (бинарник называется AyuGram)
+    freshgram         # форк Telegram (materialgram + фичи AyuGram), бинарник freshGram
     qbittorrent       # торренты
+
+    hermes-desktop    # GUI к Hermes Agent (Nous Research), из flake hermes-agent
 
     # specify-cli — CLI Spec Kit (`specify init`/`/specify`/`/plan`/`/tasks`
     # в Claude Code), см. pkgs/specify-cli.nix

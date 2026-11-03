@@ -163,7 +163,7 @@ in
           # открытые окна не перекрашивались. Держать оба нельзя — два
           # шаблона писали бы один и тот же themes/noctalia.conf.
           builtin_ids = [ "btop" "gtk3" "gtk4" "qt" ];
-          # telegram — под AyuGram (форк Telegram Desktop, формат палитры тот же).
+          # telegram — под freshGram (форк Telegram Desktop, формат палитры тот же).
           # ОСОБЫЙ СЛУЧАЙ: у этого шаблона нет post_hook, он только кладёт файл
           # ~/.config/telegram-desktop/themes/noctalia.tdesktop-theme. Сам Telegram
           # держит тему в tdata и файл с диска не перечитывает — импорт руками,
@@ -189,8 +189,17 @@ in
           # config.toml, а тот — read-only симлинк (та же беда, что с kitty).
           # Include уже стоит в home/umbriel/config.toml, Umbriel сам
           # перечитывает файл при изменении.
+          #
+          # Из шаблона вырезана секция [colors.title_bar]: шаблон noctalia
+          # 5.4.1 рассчитан на свежий Umbriel, а в nixpkgs он от 2026-10-16
+          # и ругается «noctalia.toml:32:1: unknown key colors.title_bar».
+          # Когда nixpkgs догонит (проверка: `umbriel config validate`
+          # чистый без awk) — вернуть прямой путь к шаблону.
           user.umbriel = {
-            input_path = "${config.programs.noctalia.package}/share/noctalia/assets/templates/umbriel/umbriel.toml";
+            input_path = "${pkgs.runCommand "umbriel-noctalia-template.toml" { } ''
+              awk '/^\[/ { skip = ($0 == "[colors.title_bar]") } !skip' \
+                ${config.programs.noctalia.package}/share/noctalia/assets/templates/umbriel/umbriel.toml > $out
+            ''}";
             output_path = "~/.config/umbriel/noctalia.toml";
           };
 

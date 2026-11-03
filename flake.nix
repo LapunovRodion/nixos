@@ -122,6 +122,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Hermes Agent (Nous Research) — отсюда только официальный Hermes Desktop
+    # (packages.desktop), сам агент живёт на сервере docker. Без follows на
+    # nixpkgs: питоновское окружение собрано uv2nix под свой пин nixpkgs.
+    # Обновление: nix flake update hermes-agent → rebuild.
+    hermes-agent.url = "github:NousResearch/hermes-agent";
+
     # nix-index-database — готовая база nix-index, пересобирается апстримом
     # раз в неделю. Без неё nix-index требовал ручного `nix-index` (несколько
     # минут), и command-not-found в fish молчал. Заодно даёт comma:

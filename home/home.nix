@@ -178,8 +178,7 @@ in
   # пишется вовсе: home-manager подставил бы его в несуществующий
   # каталог и молча ничего не сделал.
   #
-  # Первые две строки были в файле и раньше, правились руками; здесь
-  # они сохранены как есть, иначе перезатёрлись бы.
+  # Сам user.js — в активации zenProfile (ниже), почему — см. там.
   # =============================================================
   home.file = lib.mkMerge [
     {
@@ -256,55 +255,82 @@ in
     }
 
     (lib.mkIf (osConfig.local.zenProfileDir != null) {
-      ".config/zen/${osConfig.local.zenProfileDir}/user.js".text = ''
-    user_pref("devtools.chrome.enabled", true);
-    user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);
-
-    // Моноширинный на страницах: <pre>, <code>, любой листинг.
-    // Раздельно для латиницы и кириллицы — Firefox держит настройку
-    // шрифта на каждую систему письма, и одной x-western мало:
-    // на русских страницах язык определяется как x-cyrillic.
-    // Без суффикса Mono, в отличие от kitty: там он нужен, чтобы
-    // иконочные глифы не ломали сетку терминала, а на веб-странице
-    // ужимать нечего.
-    user_pref("font.name.monospace.x-western", "JetBrainsMono Nerd Font");
-    user_pref("font.name.monospace.x-cyrillic", "JetBrainsMono Nerd Font");
-
-    // Своя стартовая страница. Живёт НА СЕРВЕРЕ отдельным сервисом
-    // (/opt/startpage: nginx на 127.0.0.1:8095 + tailscale serve на :8445),
-    // локальной копии сознательно нет — страница одна для всех устройств.
-    // Обратная сторона: без поднятого tailscale вместо неё будет ошибка сети.
-    //
-    // Это кнопка «домой» и новые окна. НОВУЮ ВКЛАДКУ так не подменить:
-    // у Zen нет настройки под кастомный URL, zen.urlbar.replace-newtab лишь
-    // возвращает старую страницу — для этого понадобилось бы расширение.
-    //
-    // browser.startup.page здесь сознательно не задан: в профиле его нет,
-    // значит работает дефолт сборки, а жёсткая единица отобрала бы
-    // восстановление прошлой сессии при запуске.
-    user_pref("browser.startup.homepage", "https://server.taila27ec6.ts.net:8445");
-
-    // Прозрачное окно на Linux (см. zen/transparent.css).
-    user_pref("zen.widget.linux.transparency", true);
-    // Иначе неактивное окно заливается серым (InactiveCaption) поверх прозрачности.
-    user_pref("zen.view.grey-out-inactive-windows", false);
-      '';
-
       # =============================================================
       # Прозрачный интерфейс — ОТДЕЛЬНЫМ файлом рядом с userChrome.css.
       #
       # chrome/userChrome.css принадлежит community-шаблону noctalia
-      # zen-browser: его apply.sh начинается с `touch "$user_chrome"` под
-      # set -euo pipefail, так что read-only симлинк в /nix/store на этом
-      # месте уронил бы хук целиком. Содержимое файла шаблон при этом
-      # сохраняет, поэтому один раз РУКАМИ в chrome/userChrome.css второй
-      # строкой (после строки noctalia):
-      #   @import "noctalia-transparent.css";
+      # zen-browser: его apply.sh переписывает файл на каждой смене обоев,
+      # ставя свой @import первой строкой и сохраняя остальное. Наш
+      # @import "noctalia-transparent.css" дописывает активация zenProfile
+      # ниже — он должен идти ПОСЛЕ строки noctalia, так и выходит.
       # =============================================================
       ".config/zen/${osConfig.local.zenProfileDir}/chrome/noctalia-transparent.css".source =
         ./zen/transparent.css;
     })
   ];
+
+  # =============================================================
+  # Zen: user.js и @import прозрачности — активацией, а не home.file.
+  #
+  # user.js НЕЛЬЗЯ держать симлинком в /nix/store: apply.sh шаблона
+  # noctalia делает `touch` на user.js под set -euo pipefail, ловит
+  # Permission denied и падает на каждой смене обоев — до того, как
+  # обновит userChrome.css. Поэтому файл КОПИРУЕТСЯ (обычный, на запись).
+  #
+  # Две строки devtools/legacyUserProfileCustomizations стоят В КОНЦЕ
+  # ровно в том виде, в каком их дописывает apply.sh: тогда его
+  # write_if_changed видит совпадение и файл не трогает. Правки prefs из
+  # UI для перечисленных тут ключей откатываются на каждом свитче.
+  # =============================================================
+  home.activation.zenProfile = lib.mkIf (osConfig.local.zenProfileDir != null)
+    (lib.hm.dag.entryAfter [ "linkGeneration" ] (let
+      userJs = pkgs.writeText "zen-user.js" ''
+        // Моноширинный на страницах: <pre>, <code>, любой листинг.
+        // Раздельно для латиницы и кириллицы — Firefox держит настройку
+        // шрифта на каждую систему письма, и одной x-western мало:
+        // на русских страницах язык определяется как x-cyrillic.
+        // Без суффикса Mono, в отличие от kitty: там он нужен, чтобы
+        // иконочные глифы не ломали сетку терминала, а на веб-странице
+        // ужимать нечего.
+        user_pref("font.name.monospace.x-western", "JetBrainsMono Nerd Font");
+        user_pref("font.name.monospace.x-cyrillic", "JetBrainsMono Nerd Font");
+
+        // Своя стартовая страница. Живёт НА СЕРВЕРЕ отдельным сервисом
+        // (/opt/startpage: nginx на 127.0.0.1:8095 + tailscale serve на :8445),
+        // локальной копии сознательно нет — страница одна для всех устройств.
+        // Обратная сторона: без поднятого tailscale вместо неё будет ошибка сети.
+        //
+        // Это кнопка «домой» и новые окна. НОВУЮ ВКЛАДКУ так не подменить:
+        // у Zen нет настройки под кастомный URL, zen.urlbar.replace-newtab лишь
+        // возвращает старую страницу — для этого понадобилось бы расширение.
+        //
+        // browser.startup.page здесь сознательно не задан: в профиле его нет,
+        // значит работает дефолт сборки, а жёсткая единица отобрала бы
+        // восстановление прошлой сессии при запуске.
+        user_pref("browser.startup.homepage", "https://server.taila27ec6.ts.net:8445");
+
+        // Прозрачное окно на Linux (см. zen/transparent.css).
+        user_pref("zen.widget.linux.transparency", true);
+        // Иначе неактивное окно заливается серым (InactiveCaption) поверх прозрачности.
+        user_pref("zen.view.grey-out-inactive-windows", false);
+        // Compact-режим (сайдбар выплывает по наведению) — одинаково на обеих
+        // машинах; подложка под него — .zen-toolbar-background в transparent.css.
+        user_pref("zen.view.compact.enable-at-startup", true);
+        user_pref("devtools.chrome.enabled", true);
+        user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);
+      '';
+    in ''
+      zen="$HOME/.config/zen/${osConfig.local.zenProfileDir}"
+      if [ -d "$zen" ]; then
+        # rm: на месте мог остаться старый симлинк из home.file.
+        run rm -f "$zen/user.js"
+        run install -m644 ${userJs} "$zen/user.js"
+        chrome="$zen/chrome/userChrome.css"
+        if ! grep -qsF 'noctalia-transparent.css' "$chrome"; then
+          run tee -a "$chrome" >/dev/null <<< '@import "noctalia-transparent.css";'
+        fi
+      fi
+    ''));
 
   # Тема курсоров. До этого в системе не было НИ ОДНОЙ — niri ругался
   # "error loading xcursor crosshair: no default icon", из-за чего slurp

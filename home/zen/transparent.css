@@ -18,9 +18,26 @@
  * #zen-toolbar-background (класс .zen-browser-generic-background), цвет
  * JS кладёт inline-переменными. Слои скрываем целиком, вместе с зерном.
  * visibility, а не display: из #zen-browser-background Zen читает
- * computed-цвет AccentColor. */
-.zen-browser-generic-background {
+ * computed-цвет AccentColor.
+ *
+ * Кроме .zen-toolbar-background: в compact-режиме это подложка выплывающих
+ * сайдбара и верхней панели. Они ложатся ПОВЕРХ страницы, а композитор
+ * размывает только обои — без подложки сквозь вкладки читается сайт. */
+.zen-browser-generic-background:not(.zen-toolbar-background) {
   visibility: hidden !important;
+}
+
+/* Подложка compact-режима — сплошная, без прозрачности и backdrop-filter:
+ * полупрозрачная панель поверх страницы перекомпоновывается на каждом
+ * кадре выезда и лагала.
+ * В ::before/::after Zen рисует градиент воркспейса — убираем. */
+.zen-toolbar-background {
+  background: var(--base) !important;
+
+  &::before,
+  &::after {
+    display: none !important;
+  }
 }
 
 :root {
