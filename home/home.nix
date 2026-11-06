@@ -1114,6 +1114,12 @@ in
     settings.color_theme = "noctalia";
   };
 
+  # --- htop: список процессов, путь /nix/store/<хеш>-... скрыт (клавиша p вернёт) ---
+  programs.htop = {
+    enable = true;
+    settings.show_program_path = 0;
+  };
+
   # --- satty: разметка скриншота (Mod+Ctrl+S в umbriel) ---
   # Настройки здесь, а не флагами в бинде: так их подхватывает любой вызов
   # satty, в том числе руками из терминала.
