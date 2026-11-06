@@ -807,6 +807,14 @@ in
   # игры в Steam → Launch Options прописать:  nvidia-offload %command%
   # На десктопе видеокарта одна — ничего дописывать не нужно.
   programs.steam.enable = true;
+  # Steam сам выбирает кэш провайдера RETN в Риге (source priority class 11)
+  # и качает только с него — вечером это ~35–40 Мбит/с при свободном канале
+  # ~100. Смена региона загрузки не помогает: кэш выбирается по IP. Без него
+  # Steam уходит на обычные серверы Valve. Если станет хуже — убрать.
+  networking.hosts."0.0.0.0" = [
+    "cache3-rix-retn.steamcontent.com"
+    "cache4-rix-retn.steamcontent.com"
+  ];
 
   # gamemode — на время игры поднимает приоритет процесса и переключает
   # CPU governor на performance. В Steam: Launch Options → gamemoderun %command%
